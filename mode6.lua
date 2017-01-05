@@ -446,24 +446,23 @@ function courseplay:handle_mode6(vehicle, allowedToDrive, workSpeed, lx , lz, re
 						if tool.pipeIsUnloading and (tool.courseplayers == nil or tool.courseplayers[1] == nil) and tool.cp.stopWhenUnloading and tankFillLevelPct >= 1 then
 							tool.stopForManualUnloader = true
 						end
-						
-						if tool.cp.driveOnAtFillLevel ~= nil then
-							if tool.cp.totalFillLevelPercent >= min(tool.cp.driveOnAtFillLevel,99) and tool.cp.hasUnloadingRefillingCourse then
-								if courseplay:timerIsThrough(tool, 'emptyStrawBox', false) then
-									if tool.cp.abortWork == nil then
-										courseplay:setAbortWorkWaypoint(tool);
-										courseplay:resetCustomTimer(tool, 'emptyStrawBox', true);
-									end
-								else
-									allowedToDrive = false;	
+							
+						if vehicle.cp.totalFillLevelPercent >= min(vehicle.cp.driveOnAtFillLevel,99) and vehicle.cp.hasUnloadingRefillingCourse then
+							if courseplay:timerIsThrough(vehicle, 'emptyStrawBox', false) then
+								if vehicle.cp.abortWork == nil then
+									courseplay:setAbortWorkWaypoint(vehicle);
+									courseplay:resetCustomTimer(vehicle, 'emptyStrawBox', true);
 								end
-								if tool.isStrawEnabled and courseplay:timerIsThrough(tool, 'emptyStrawBox', true) and tool.cp.abortWork == nil then
-									local strawTimer = tool.strawToggleTime or 3500;
-									strawTimer = strawTimer / 1000
-									courseplay:setCustomTimer(tool, 'emptyStrawBox', strawTimer);
-								end
-							end						
-						end	
+							else
+								allowedToDrive = false;	
+							end
+							if tool.isStrawEnabled and courseplay:timerIsThrough(vehicle, 'emptyStrawBox', true) and vehicle.cp.abortWork == nil then
+								local strawTimer = tool.strawToggleTime or 3500;
+								strawTimer = strawTimer / 1000
+								courseplay:setCustomTimer(vehicle, 'emptyStrawBox', strawTimer);
+							end
+						end						
+							
 						if tankFillLevelPct >= 100 
 						or tool.waitingForDischarge 
 						or (tool.cp.stopWhenUnloading and tool.pipeIsUnloading and tool.courseplayers and tool.courseplayers[1] ~= nil and tool.courseplayers[1].cp.modeState ~= 9) 
