@@ -324,6 +324,7 @@ function courseplay.hud:setup()
 		recordingStop      = {  76,360, 108,328 };
 		recordingTurn      = {   4,360,  36,328 };
 		recordingWait      = {  40,180,  72,148 };
+		recordingUnload	   = {   4,431,  36,399 };
 		refresh            = { 220,252, 252,220 };
 		save               = { 220,180, 252,148 };
 		search             = {   4,288,  36,256 };
@@ -352,7 +353,8 @@ function courseplay.hud:setup()
 	self.bottomInfo.waitPointsTextX = self.bottomInfo.waitPointsIconX + self.bottomInfo.iconWidth * 1.5; -- rendered with center alignment
 	self.bottomInfo.waypointIconX = self.bottomInfo.waitPointsIconX - self.buttonSize.middle.margin - self.bottomInfo.iconWidth * 4;
 	self.bottomInfo.waypointTextX = self.bottomInfo.waypointIconX + self.bottomInfo.iconWidth * 1.25;
-
+	self.bottomInfo.timeRemainingX = self.bottomInfo.waypointIconX - self.bottomInfo.iconWidth
+	
 	self.bottomInfo.modeUVsPx = {
 		[courseplay.MODE_GRAIN_TRANSPORT]		 = { 184,108, 216, 76 };
 		[courseplay.MODE_COMBI]					 = { 220,108, 252, 76 };
@@ -457,6 +459,12 @@ function courseplay.hud:setContent(vehicle)
 		vehicle.cp.hud.content.bottomInfo.crossingPointsText = nil;
 	end;
 
+	if vehicle.cp.timeRemaining ~= nil then
+		local timeRemaining = courseplay:sekToTimeFormat(vehicle.cp.timeRemaining)
+		vehicle.cp.hud.content.bottomInfo.timeRemainingText = ('%02.f:%02.f:%02.f'):format(timeRemaining.nHours,timeRemaining.nMins,timeRemaining.nSecs)
+	else
+		vehicle.cp.hud.content.bottomInfo.timeRemainingText = nil
+	end
 	------------------------------------------------------------------
 
 	-- AUTOMATIC PAGE RELOAD BASED ON VARIABLE STATE
@@ -550,6 +558,10 @@ function courseplay.hud:renderHud(vehicle)
 		vehicle.cp.hud.crossingPointsIcon:render();
 	end;
 
+	if vehicle.cp.hud.content.bottomInfo.timeRemainingText ~= nil  then
+		courseplay:setFontSettings('white', false, 'right');
+		renderText(self.bottomInfo.timeRemainingX, self.bottomInfo.textPosY, self.fontSizes.bottomInfo, vehicle.cp.hud.content.bottomInfo.timeRemainingText);
+	end		
 
 	-- VERSION INFO
 	if courseplay.versionDisplayStr ~= nil then
@@ -1412,10 +1424,11 @@ function courseplay.hud:setupVehicleHud(vehicle)
 		[2] = { 'recordingPause',	 'setRecordingPause',		 true, 'COURSEPLAY_RECORDING_PAUSE'			   },
 		[3] = { 'recordingDelete',	 'delete_waypoint',			 nil,  'COURSEPLAY_RECORDING_DELETE'		   },
 		[4] = { 'recordingWait',	 'set_waitpoint',			 nil,  'COURSEPLAY_RECORDING_SET_WAIT'		   },
-		[5] = { 'recordingCross',	 'set_crossing',			 nil,  'COURSEPLAY_RECORDING_SET_CROSS'		   },
-		[6] = { 'recordingTurn',	 'setRecordingTurnManeuver', true, 'COURSEPLAY_RECORDING_TURN_START'	   },
-		[7] = { 'recordingReverse',	 'change_DriveDirection',	 true, 'COURSEPLAY_RECORDING_REVERSE_START'	   },
-		[8] = { 'recordingAddSplit', 'addSplitRecordingPoints',	 nil,  'COURSEPLAY_RECORDING_ADD_SPLIT_POINTS' }
+		[5] = { 'recordingUnload',	 'set_unloadPoint',			 nil,  'COURSEPLAY_RECORDING_SET_UNLOAD'	   },
+		[6] = { 'recordingCross',	 'set_crossing',			 nil,  'COURSEPLAY_RECORDING_SET_CROSS'		   },
+		[7] = { 'recordingTurn',	 'setRecordingTurnManeuver', true, 'COURSEPLAY_RECORDING_TURN_START'	   },
+		[8] = { 'recordingReverse',	 'change_DriveDirection',	 true, 'COURSEPLAY_RECORDING_REVERSE_START'	   },
+		[9] = { 'recordingAddSplit', 'addSplitRecordingPoints',	 nil,  'COURSEPLAY_RECORDING_ADD_SPLIT_POINTS' }
 	};
 	local totalWidth = (#recordingData - 1) * (wBig + marginBig) + wBig;
 	local baseX = self.baseCenterPosX - totalWidth * 0.5;

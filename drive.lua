@@ -111,8 +111,32 @@ function courseplay:drive(self, dt)
 		if self.Waypoints[self.cp.waypointIndex].turnStart then
 			self.cp.isTurning = self.Waypoints[self.cp.waypointIndex].turnStart;
 		end
-		if self.cp.abortWork ~= nil and self.cp.totalFillLevelPercent == 0 then
-			self.cp.isTurning = nil;
+
+		--- If we are turning and abortWork is set, then check if we need to abort the turn
+		if self.cp.isTurning and self.cp.abortWork ~= nil then
+			local abortTurn = false;
+			-- Mode 4 Check
+			if self.cp.mode == 4 and self.cp.workTools ~= nil then
+				for _,tool in pairs(self.cp.workTools) do
+					local hasMoreFillUnits = courseplay:setOwnFillLevelsAndCapacities(tool)
+					if hasMoreFillUnits and tool ~= self and
+						((tool.sowingMachine ~= nil and self.cp.totalSeederFillLevelPercent == 0) or (tool.sprayer ~= nil and self.cp.totalSprayerFillLevelPercent == 0))
+					then
+						abortTurn = true;
+					end;
+				end;
+			-- Mode 6 Check
+			elseif self.cp.mode == 6 and self.cp.totalFillLevelPercent == 100 then
+				abortTurn = true;
+			end;
+
+			-- Abort turn if needed.
+			if abortTurn then
+				self.cp.isTurning = nil;
+				if #(self.cp.turnTargets) > 0 then
+					courseplay:clearTurnTargets(self);
+				end;
+			end;
 		end
 
 		--RESET OFFSET TOGGLES
@@ -181,15 +205,22 @@ function courseplay:drive(self, dt)
 	local isBypassing = false
 	local isCrawlingToWait = false
 	local isWaitingThisLoop = false
+	local wayPointIsWait = self.Waypoints[self.cp.previousWaypointIndex].wait
+	local wayPointIsUnload = self.Waypoints[self.cp.previousWaypointIndex].unload
+	local wayPointIsRevUnload = wayPointIsUnload and self.Waypoints[self.cp.previousWaypointIndex].rev
+	local stopForUnload = false
 	-- ### WAITING POINTS - START
-	if self.Waypoints[self.cp.previousWaypointIndex].wait and self.cp.wait then
+	if (wayPointIsWait or wayPointIsUnload) and self.cp.wait then
 		isWaitingThisLoop = true
 		-- set wait time end
 		if self.cp.waitTimer == nil and self.cp.waitTime > 0 then
 			self.cp.waitTimer = self.timer + self.cp.waitTime * 1000;
 		end;
-
-		if self.cp.mode == 3 and self.cp.workToolAttached then
+		if 	self.cp.mode <= 2 then
+			if wayPointIsUnload then
+				stopForUnload = courseplay:handleUnloading(self,wayPointIsRevUnload)
+			end
+		elseif self.cp.mode == 3 and self.cp.workToolAttached then
 			courseplay:handleMode3(self, allowedToDrive, dt);
 
 		elseif self.cp.mode == 4 then
@@ -217,7 +248,9 @@ function courseplay:drive(self, dt)
 				courseplay:setInfoText(self, ('COURSEPLAY_LOADING_AMOUNT;%d;%d'):format(courseplay.utils:roundToLowerInterval(self.cp.totalFillLevel, 100), self.cp.totalCapacity));
 			end
 		elseif self.cp.mode == 6 then
-			if self.cp.previousWaypointIndex == self.cp.startWork then
+			if wayPointIsUnload then
+				stopForUnload = courseplay:handleUnloading(self,wayPointIsRevUnload)
+			elseif self.cp.previousWaypointIndex == self.cp.startWork then
 				courseplay:setVehicleWait(self, false);
 			elseif self.cp.previousWaypointIndex == self.cp.stopWork and self.cp.abortWork ~= nil then
 				courseplay:setVehicleWait(self, false);
@@ -295,8 +328,12 @@ function courseplay:drive(self, dt)
 			courseplay:setVehicleWait(self, false);
 		end
 		isCrawlingToWait = true
-		local _,_,zDist = worldToLocal(self.cp.DirectionNode, self.Waypoints[self.cp.previousWaypointIndex].cx, cty, self.Waypoints[self.cp.previousWaypointIndex].cz);
-		if zDist < 1 then -- don't stop immediately when hitting the waitPoints waypointIndex, but rather wait until we're close enough (1m)
+		if wayPointIsWait or wayPointIsRevUnload then
+			local _,_,zDist = worldToLocal(self.cp.DirectionNode, self.Waypoints[self.cp.previousWaypointIndex].cx, cty, self.Waypoints[self.cp.previousWaypointIndex].cz);
+			if zDist < 1 then -- don't stop immediately when hitting the waitPoints waypointIndex, but rather wait until we're close enough (1m)
+				allowedToDrive = false;
+			end;
+		elseif stopForUnload then
 			allowedToDrive = false;
 		end;
 	-- ### WAITING POINTS - END
@@ -495,7 +532,7 @@ function courseplay:drive(self, dt)
 
 		if self.cp.mode ~= 6 then
 			local minCoverWaypoint = self.cp.mode == 1 and 4 or 3;
-			showCover = self.cp.waypointIndex >= minCoverWaypoint and self.cp.waypointIndex < self.cp.numWaypoints and self.cp.currentTipTrigger == nil and self.cp.trailerFillDistance == nil;
+			showCover = self.cp.waypointIndex >= minCoverWaypoint and self.cp.waypointIndex < self.cp.numWaypoints and self.cp.currentTipTrigger == nil and self.cp.trailerFillDistance == nil and not courseplay:waypointsHaveAttr(self, self.cp.waypointIndex, -1, 2, "unload", true, false);
 		else
 			showCover = not workArea and self.cp.currentTipTrigger == nil;
 		end;
@@ -573,14 +610,42 @@ function courseplay:drive(self, dt)
 	if self.cp.fixedWorldPosition ~= nil then
 		courseplay:deleteFixedWorldPosition(self);
 	end;
-
+	local isFieldWorking = self.cp.mode == 4 or self.cp.mode == 6;
 
 	if self.cp.isTurning then
+		if isFieldWorking then
+			if self.cp.turnTimeRecorded then
+				self.cp.turnTimeRecorded = nil 
+				self.cp.recordedTurnTime = nil 
+			else
+				self.cp.recordedTurnTime = (self.cp.recordedTurnTime or 0) + dt
+			end
+		end
 		courseplay:turn(self, dt);
 		self.cp.TrafficBrake = false
+		
 		return
-	end
-
+	elseif isFieldWorking and self.cp.recordedTurnTime and not self.cp.turnTimeRecorded then
+		local turnCount = 0
+		for i=self.cp.waypointIndex,self.cp.stopWork do
+			if self.Waypoints[i].turnStart then
+				turnCount = turnCount +1
+			end		
+		end
+		self.cp.calculatedTurnTime = turnCount*(self.cp.recordedTurnTime/1000)
+		--print(" self.cp.recordedTurnTime: "..tostring(self.cp.recordedTurnTime).." turns: "..tostring(turnCount))
+		self.cp.turnTimeRecorded = true
+	elseif isFieldWorking and self.cp.waypointIndex < self.cp.stopWork then
+		local distance = (self.cp.stopWork-self.cp.waypointIndex) *self.cp.mediumWpDistance -- m
+		local speed = self.cruiseControl.speed/3.6   --m/s
+		local turnTime = math.floor(self.cp.calculatedTurnTime or 5)
+		self.cp.timeRemaining = distance/speed + turnTime
+	elseif not isFieldWorking then
+		self.cp.timeRemaining = nil
+	end 
+	
+	
+	
 	--SPEED SETTING
 	local isAtEnd   = self.cp.waypointIndex > self.cp.numWaypoints - 3;
 	local isAtStart = self.cp.waypointIndex < 3;
@@ -588,6 +653,7 @@ function courseplay:drive(self, dt)
 	or	((self.cp.mode == 2 or self.cp.mode == 3) and isAtEnd) 
 	or	(self.cp.mode == 9 and self.cp.waypointIndex > self.cp.shovelFillStartPoint and self.cp.waypointIndex <= self.cp.shovelFillEndPoint)
 	or	(not workArea and self.cp.wait and ((isAtEnd and self.Waypoints[self.cp.waypointIndex].wait) or courseplay:waypointsHaveAttr(self, self.cp.waypointIndex, 0, 2, "wait", true, false)))
+	or 	courseplay:waypointsHaveAttr(self, self.cp.waypointIndex, 0, 2, "unload", true, false)
 	or 	(isAtEnd and self.Waypoints[self.cp.waypointIndex].rev)
 	or	(not isAtEnd and (self.Waypoints[self.cp.waypointIndex].rev or self.Waypoints[self.cp.waypointIndex + 1].rev or self.Waypoints[self.cp.waypointIndex + 2].rev))
 	or	(workSpeed ~= nil and workSpeed == 0.5) -- baler in mode 6 , slow down
