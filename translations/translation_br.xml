@@ -69,7 +69,10 @@
 		<text name="COURSEPLAY_PATHFINDING" 							 text="Evitar as plantações" />
 		<text name="COURSEPLAY_COMBINE_OFFSET_HORIZONTAL" 				 text="Distância horisontal:" />
 		<text name="COURSEPLAY_START_AT" 								 text="Iniciar rota em:" />
-		<text name="COURSEPLAY_TURN_ON_FIELD"					 		 text="Virar no campo:" />  
+		<text name="COURSEPLAY_TURN_ON_FIELD"					 		 text="Virar no campo:" />
+		<text name="COURSEPLAY_OPPOSITE_TURN_DIRECTION"			 		 text="Opposite turn direction:" /> <!-- TODO: TRANSLATION! -->
+		<text name="COURSEPLAY_OPPOSITE_TURN_AT_END"			 		 text="last couple of lanes" />     <!-- TODO: TRANSLATION! -->
+		<text name="COURSEPLAY_OPPOSITE_TURN_WHEN_POSSIBLE"		 		 text="when possible" />            <!-- TODO: TRANSLATION! -->
 		<text name="COURSEPLAY_TURN_RADIUS" 							 text="Raio de giro:" />
 		<text name="COURSEPLAY_COMBINE_OFFSET_VERTICAL" 				 text="Distância vertical:" />
 		<text name="COURSEPLAY_COMBINE" 								 text="Ceifadeira" />
@@ -223,8 +226,8 @@
 		<text name="COURSEPLAY_RECORDING_PAUSE" 						 text="Pausar a gravação" />
 		<text name="COURSEPLAY_RECORDING_PAUSE_RESUME" 					 text="Retomar a gravação" />
 		<text name="COURSEPLAY_RECORDING_DELETE" 						 text="Excluir o último ponto" />
-		<text name="COURSEPLAY_RECORDING_SET_WAIT" 						 text="Definir ponto de espera" />
-		<text name="COURSEPLAY_RECORDING_SET_UNLOAD" 					 text="Set unload point" />
+		<text name="COURSEPLAY_RECORDING_SET_WAIT" 						 text="Definir parada de espera" />
+		<text name="COURSEPLAY_RECORDING_SET_UNLOAD" 					 text="Definir parada para descarregar" />
 		<text name="COURSEPLAY_RECORDING_SET_CROSS" 					 text="Definir ponto de cruzamento" />
 		<text name="COURSEPLAY_RECORDING_TURN_START" 					 text="Iniciar manobra de giro" />
 		<text name="COURSEPLAY_RECORDING_TURN_END" 						 text="Fim da manobra de giro" />
@@ -250,13 +253,14 @@
 		<text name="input_COURSEPLAY_MODIFIER" 							 text="Courseplay: modificador" />
 		<text name="input_COURSEPLAY_MENU_ACCEPT_SECONDARY" 			 text="Courseplay: aceitar menu secundário" />
 		<text name="input_COURSEPLAY_HUD" 								 text="Mostrar/ocultar Courseplay HUD" />
-		<text name="input_COURSEPLAY_START_STOP" 								 text="Courseplay: dirigir/parar na rota" />
-		<text name="input_COURSEPLAY_CANCELWAIT" 								 text="Courseplay: parar no último ponto ou no próximo trigger" />
-		<text name="input_COURSEPLAY_DRIVENOW" 								 text="Courseplay: dirigir agora" />
-		<text name="input_COURSEPLAY_NEXTMODE" 								 text="Courseplay: próximo modo" />
-		<text name="input_COURSEPLAY_PREVMODE" 								 text="Courseplay: modo anterior" />
-		<text name="input_COURSEPLAY_MOUSEACTION_PRIMARY" 					 text="Courseplay: ações do mouse" />
-		<text name="input_COURSEPLAY_MOUSEACTION_SECONDARY" 					 text="Courseplay: ações secundárias do mouse" />
+		<text name="input_COURSEPLAY_START_STOP" 						 text="Courseplay: dirigir/parar na rota" />
+		<text name="input_COURSEPLAY_CANCELWAIT" 						 text="Courseplay: continue" />    <!-- TODO: TRANSLATE! -->
+		<text name="input_COURSEPLAY_DRIVENOW" 							 text="Courseplay: dirigir agora" />
+		<text name="input_COURSEPLAY_STOP_AT_END" 						 text="Courseplay: parar no último ponto ou no próximo trigger" />
+		<text name="input_COURSEPLAY_NEXTMODE" 							 text="Courseplay: próximo modo" />
+		<text name="input_COURSEPLAY_PREVMODE" 							 text="Courseplay: modo anterior" />
+		<text name="input_COURSEPLAY_MOUSEACTION_PRIMARY" 				 text="Courseplay: ações do mouse" />
+		<text name="input_COURSEPLAY_MOUSEACTION_SECONDARY" 			 text="Courseplay: ações secundárias do mouse" />
 		<text name="COURSEPLAY_MOUSEARROW_SHOW" 						 text="mostrar cursor do mouse" />
 		<text name="COURSEPLAY_MOUSEARROW_HIDE" 						 text="ocultar cursor do mouse" />
 	
