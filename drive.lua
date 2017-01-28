@@ -2,6 +2,8 @@ local curFile = 'drive.lua';
 
 local abs, max, min, pow, sin , huge = math.abs, math.max, math.min, math.pow, math.sin, math.huge;
 local _;
+local avoidWorkAreaType = {};
+
 -- drives recored course
 function courseplay:drive(self, dt)
 	if not courseplay:getCanUseCpMode(self) then
@@ -14,22 +16,35 @@ function courseplay:drive(self, dt)
 	-- debug for workAreas
 	if courseplay.debugChannels[6] then
 		if self.cp.aiFrontMarker and self.cp.backMarkerOffset then
-			local tx1, ty1, tz1 = localToWorld(self.cp.DirectionNode,3,1,self.cp.aiFrontMarker)
-			local tx2, ty2, tz2 = localToWorld(self.cp.DirectionNode,3,1,self.cp.backMarkerOffset)
-			local nx, ny, nz = localDirectionToWorld(self.cp.DirectionNode, -1, 0, 0)
+			local directionNode	= self.isReverseDriving and self.cp.reverseDirectionNode or self.cp.DirectionNode;
+			local tx1, ty1, tz1 = localToWorld(directionNode,3,1,self.cp.aiFrontMarker)
+			local tx2, ty2, tz2 = localToWorld(directionNode,3,1,self.cp.backMarkerOffset)
+			local nx, ny, nz = localDirectionToWorld(directionNode, -1, 0, 0)
 			local distance = 6
 			drawDebugLine(tx1, ty1, tz1, 1, 0, 0, tx1+(nx*distance), ty1+(ny*distance), tz1+(nz*distance), 1, 0, 0)
 			drawDebugLine(tx2, ty2, tz2, 1, 0, 0, tx2+(nx*distance), ty2+(ny*distance), tz2+(nz*distance), 1, 0, 0)
 		end;
-		local workTool = courseplay:getFirstReversingWheeledWorkTool(self) or self.cp.workTools[1];
-		if workTool and workTool.workAreas then
-			for index, workArea in ipairs(workTool.workAreas) do
-				local sx, sy, sz = getWorldTranslation(workArea["start"]);
-				drawDebugLine(sx, sy, sz, 1, 0, 0, sx, sy+3, sz, 1, 0, 0);
-				local wx, wy, wz = getWorldTranslation(workArea["width"]);
-				drawDebugLine(wx, wy, wz, 1, 0, 0, wx, wy+3, wz, 1, 0, 0);
-				local hx, hy, hz = getWorldTranslation(workArea["height"]);
-				drawDebugLine(hx, hy, hz, 1, 0, 0, hx, hy+3, hz, 1, 0, 0);
+
+		if #avoidWorkAreaType == 0 then
+			avoidWorkAreaType[WorkArea.AREATYPE_RIDGEMARKER] = true;
+			avoidWorkAreaType[WorkArea.AREATYPE_MOWERDROP] = true;
+			avoidWorkAreaType[WorkArea.AREATYPE_WINDROWERDROP] = true;
+			avoidWorkAreaType[WorkArea.AREATYPE_TEDDERDROP] = true;
+		end;
+		for _,workTool in pairs(self.cp.workTools) do
+			if workTool.workAreas then
+				for k = 1, #workTool.workAreas do
+					if not avoidWorkAreaType[workTool.workAreas[k].type] then
+						for _, workArea in ipairs(workTool.workAreas) do
+							local sx, sy, sz = getWorldTranslation(workArea["start"]);
+							drawDebugLine(sx, sy, sz, 1, 0, 0, sx, sy+3, sz, 1, 0, 0);
+							local wx, wy, wz = getWorldTranslation(workArea["width"]);
+							drawDebugLine(wx, wy, wz, 1, 0, 0, wx, wy+3, wz, 1, 0, 0);
+							local hx, hy, hz = getWorldTranslation(workArea["height"]);
+							drawDebugLine(hx, hy, hz, 1, 0, 0, hx, hy+3, hz, 1, 0, 0);
+						end;
+					end;
+				end;
 			end;
 		end;
 	end
@@ -157,7 +172,7 @@ function courseplay:drive(self, dt)
 	local lightMask = 0
 	local combineBeaconOn = self.cp.isCombine and self.cp.totalFillLevelPercent > 80;
 	local beaconOn = (self.cp.warningLightsMode == courseplay.WARNING_LIGHTS_BEACON_ALWAYS 
-					 or ((self.cp.mode == 1 or self.cp.mode == 2 or self.cp.mode == 3 or self.cp.mode == 5) and self.cp.waypointIndex > 2) 
+					 or ((self.cp.mode == 1 or self.cp.mode == 2 or self.cp.mode == 3 or self.cp.mode == 5) and self.cp.waypointIndex > 2 and self.cp.trailerFillDistance == nil)
 					 or ((self.cp.mode == 4 or self.cp.mode == 6) and self.cp.waypointIndex > self.cp.stopWork)
 					 or (self.cp.mode == 10 and (self.cp.waypointIndex > 1 or #self.cp.mode10.stoppedCourseplayers >0) )
 					 or combineBeaconOn) or false;
@@ -171,8 +186,8 @@ function courseplay:drive(self, dt)
 		if self.beaconLightsActive then
 			self:setBeaconLightsVisibility(false);
 		end;
-		if self.cp.hasHazardLights and self.turnSignalState ~= Vehicle.TURNSIGNAL_OFF then
-			self:setTurnSignalState(Vehicle.TURNSIGNAL_OFF);
+		if self.cp.hasHazardLights and self.turnLightState ~= Lights.TURNSIGNAL_OFF then
+			self:setTurnLightState(Lights.TURNLIGHT_OFF);
 		end;
 	else -- on street/always
 		if self.beaconLightsActive ~= beaconOn then
@@ -180,10 +195,10 @@ function courseplay:drive(self, dt)
 		end;
 		if self.cp.hasHazardLights then
 			local hazardOn = self.cp.warningLightsMode == courseplay.WARNING_LIGHTS_BEACON_HAZARD_ON_STREET and beaconOn and not combineBeaconOn;
-			if not hazardOn and self.turnSignalState ~= Vehicle.TURNSIGNAL_OFF then
-				self:setTurnSignalState(Vehicle.TURNSIGNAL_OFF);
-			elseif hazardOn and self.turnSignalState ~= Vehicle.TURNSIGNAL_HAZARD then
-				self:setTurnSignalState(Vehicle.TURNSIGNAL_HAZARD);
+			if not hazardOn and self.turnLightState ~= Lights.TURNLIGHT_OFF then
+				self:setTurnLightState(Lights.TURNLIGHT_OFF);
+			elseif hazardOn and self.turnLightState ~= Lights.TURNLIGHT_HAZARD then
+				self:setTurnLightState(Lights.TURNLIGHT_HAZARD);
 			end;
 		end;
 	end;
@@ -597,9 +612,6 @@ function courseplay:drive(self, dt)
 		if self.cp.curSpeed > 1 and not self.cp.mode == 9 then
 			allowedToDrive = true;
 			moveForwards = self.movingDirection == 1;
-		elseif self.cp.curSpeed < 0.2 then
-			-- ## The infamous "SUCK IT, GIANTS" fix, a.k.a "chain that fucker down, it ain't goin' nowhere!"
-			--courseplay:getAndSetFixedWorldPosition(self);
 		end;
 		AIVehicleUtil.driveInDirection(self, dt, 30, -1, 0, 28, allowedToDrive, moveForwards, 0, 1) 
 		self.cp.speedDebugLine = ("drive("..tostring(debug.getinfo(1).currentline-1).."): allowedToDrive false ")
@@ -647,9 +659,9 @@ function courseplay:drive(self, dt)
 	
 	
 	--SPEED SETTING
-	local isAtEnd   = self.cp.waypointIndex > self.cp.numWaypoints - 3;
+	local isAtEnd   = self.cp.waypointIndex > self.cp.numWaypoints - 2;
 	local isAtStart = self.cp.waypointIndex < 3;
-	if 	((self.cp.mode == 1 or self.cp.mode == 5 or self.cp.mode == 8) and (isAtStart or isAtEnd)) 
+	if 	((self.cp.mode == 1 or self.cp.mode == 5 or self.cp.mode == 8) and (isAtStart or isAtEnd or self.cp.trailerFillDistance ~= nil))
 	or	((self.cp.mode == 2 or self.cp.mode == 3) and isAtEnd) 
 	or	(self.cp.mode == 9 and self.cp.waypointIndex > self.cp.shovelFillStartPoint and self.cp.waypointIndex <= self.cp.shovelFillEndPoint)
 	or	(not workArea and self.cp.wait and ((isAtEnd and self.Waypoints[self.cp.waypointIndex].wait) or courseplay:waypointsHaveAttr(self, self.cp.waypointIndex, 0, 2, "wait", true, false)))
@@ -827,8 +839,7 @@ function courseplay:drive(self, dt)
 		self.cp.shortestDistToWp = self.cp.distanceToTarget
 	end
 
-	if self.invertedDrivingDirection then
-		lx = -lx
+	if self.isReverseDriving then
 		lz = -lz
 	end
 
