@@ -534,7 +534,7 @@ function courseplay:unload_combine(vehicle, dt)
 				vehicle.cp.curTarget.x, vehicle.cp.curTarget.y, vehicle.cp.curTarget.z = localToWorld(currentTipper.rootNode, -sideMultiplier*turnDiameter, 0, trailerOffset);
 				courseplay:debug(string.format("%s: combine is empty and turning",nameNum(vehicle)),4)
 				if combineIsAutoCombine then
-					
+
 					local index = combine.acDirectionBeforeTurn.traceIndex+1
 					if index > #combine.acDirectionBeforeTurn.trace then
 						index = 1
@@ -560,6 +560,7 @@ function courseplay:unload_combine(vehicle, dt)
 			else
 				courseplay:debug(string.format("%s: combine is empty ",nameNum(vehicle)),4)
 				if combine.cp.isHarvesterAttachable then
+					courseplay:debug(string.format("%s: combine is isHarvesterAttachable move out of the way",nameNum(vehicle)),4)
 					vehicle.cp.curTarget.x, vehicle.cp.curTarget.y, vehicle.cp.curTarget.z = localToWorld(currentTipper.rootNode, 0 , 0, 5);
 					courseplay:addNewTargetVector(vehicle, sideMultiplier*offset*0.8 ,totalLength + trailerOffset,currentTipper);
 				else
@@ -655,7 +656,7 @@ function courseplay:unload_combine(vehicle, dt)
 			elseif lz < -0.5 then
 				refSpeed = max(combine_speed - vehicle.cp.speeds.crawl,vehicle.cp.speeds.crawl)
 				speedDebugLine = ("mode2("..tostring(debug.getinfo(1).currentline-1).."): refSpeed = "..tostring(refSpeed))
-			elseif lz > 1 or combine.sentPipeIsUnloading ~= true  then  
+			elseif lz > 1 or not combine.overloading.isActive then  
 				refSpeed = max(combine_speed + vehicle.cp.speeds.crawl,vehicle.cp.speeds.crawl)
 				speedDebugLine = ("mode2("..tostring(debug.getinfo(1).currentline-1).."): refSpeed = "..tostring(refSpeed))
 			else

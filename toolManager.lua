@@ -8,13 +8,22 @@ function courseplay:attachImplement(implement)
 	if workTool.attacherVehicle.cp.hasSpecializationSteerable then
 		workTool.attacherVehicle.cp.tooIsDirty = true;
 	end;
-
 	courseplay:setAttachedCombine(self);
 end;
+
+AIVehicle.onAttachImplement = Utils.appendedFunction(AIVehicle.onAttachImplement, courseplay.attachImplement);
+
+
 function courseplay:detachImplement(implementIndex)
 	--- Update Vehicle
 	self.cp.tooIsDirty = true;
+	if self.attachedImplements[implementIndex].object == self.cp.attachedCombine then
+		self.cp.attachedCombine = nil;
+		courseplay:setMinHudPage(self);
+	end
 end;
+AIVehicle.onDetachImplement = Utils.appendedFunction(AIVehicle.onDetachImplement, courseplay.detachImplement);
+
 
 function courseplay:resetTools(vehicle)
 	vehicle.cp.workTools = {}
@@ -139,7 +148,7 @@ function courseplay:isFrontloader(workTool)
 	return workTool.cp.hasSpecializationCylindered and workTool.cp.hasSpecializationAnimatedVehicle and not workTool.cp.hasSpecializationShovel;
 end;
 function courseplay:isHarvesterSteerable(workTool)
-	return workTool.typeName == "selfPropelledPotatoHarvester" or workTool.cp.isHarvesterSteerable;
+	return Utils.getNoNil(workTool.typeName == "selfPropelledPotatoHarvester" or workTool.cp.isHarvesterSteerable, false);
 end;
 function courseplay:isHookLift(workTool)
 	if workTool.attacherJoint then
@@ -802,7 +811,11 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 		freeCapacity = ctt.capacity - ctt.fillLevel;
 	else
 		for _, tipper in pairs(vehicle.cp.workTools) do
-			if tipper.tipReferencePoints ~= nil then
+			if ctt.animalHusbandry then
+				if ctt.animalHusbandry:getHasSpaceForTipping(tipper.cp.fillType) then
+					freeCapacity = 100
+				end
+			elseif tipper.tipReferencePoints ~= nil then
 				freeCapacity = freeCapacity + courseplay:getTipTriggerFreeCapacity(ctt, tipper.cp.fillType);
 				if tipper.cp.isTipping then
 					vehicle.cp.isTipping = true;
@@ -851,7 +864,16 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 		if tipper.tipReferencePoints ~= nil then
 			local allowedToDriveBackup = allowedToDrive;
 			local fillType = tipper.cp.fillType;
-			local distanceToTrigger, bestTipReferencePoint = ctt:getTipDistanceFromTrailer(tipper, tipper.preferedTipReferencePointIndex);
+			local distanceToTrigger, bestTipReferencePoint = 0,1;
+			if isBGA then
+				if tipper.cp.rearTipRefPoint and tipper.cp.rearTipRefPoint ~= bestTipReferencePoint then
+					bestTipReferencePoint = tipper.cp.rearTipRefPoint;
+				end;
+				distanceToTrigger, bestTipReferencePoint = ctt:getTipDistanceFromTrailer(tipper,bestTipReferencePoint);
+			else
+				distanceToTrigger, bestTipReferencePoint = ctt:getTipDistanceFromTrailer(tipper);
+			end
+			tipper.preferedTipReferencePointIndex = bestTipReferencePoint
 			local trailerInTipRange = false
 			if not isBGA then
 				trailerInTipRange =  g_currentMission:getIsTrailerInTipRange(tipper, ctt, bestTipReferencePoint);
@@ -867,11 +889,7 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 				local stopAndGo = false;
 
 				-- Make sure we are using the rear TipReferencePoint as bestTipReferencePoint if possible.
-				if tipper.cp.rearTipRefPoint and tipper.cp.rearTipRefPoint ~= bestTipReferencePoint then
-					bestTipReferencePoint = tipper.cp.rearTipRefPoint;
-
-				end;
-
+				
 				-- Check if bestTipReferencePoint it's inversed
 
 				--[[if tipper.cp.inversedRearTipNode == nil then
@@ -957,7 +975,6 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 				if ctt.isAreaTrigger then
 					trailerInTipRange = g_currentMission.trailerTipTriggers[tipper] ~= nil
 				end
-				
 				goForTipping = trailerInTipRange;
 
 				--AlternativeTipping: don't unload if full
@@ -988,7 +1005,11 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 							if isBGA then
 								--tip to ground or existing heap
 								tipper:toggleTipState(nil, bestTipReferencePoint);
-							else
+							elseif ctt.animalHusbandry then
+								if ctt.animalHusbandry:getHasSpaceForTipping(tipper.cp.fillType) then
+									tipper:toggleTipState(ctt, bestTipReferencePoint);
+								end
+							else	
 								tipper:toggleTipState(ctt, bestTipReferencePoint);
 							end
 							courseplay:debug(nameNum(vehicle)..": toggleTipState: "..tostring(bestTipReferencePoint).."  /unloadingTipper= "..tostring(tipper.name), 2);
@@ -999,7 +1020,7 @@ function courseplay:unload_tippers(vehicle, allowedToDrive)
 						allowedToDrive = false;
 					end;
 				else
-					if tipper.tipState ~= Trailer.TIPSTATE_CLOSING then
+					if tipper.tipState ~= Trailer.TIPSTATE_CLOSING and tipper.tipState ~= Trailer.TIPSTATE_CLOSED then
 						tipper.cp.closestTipDistance = math.huge
 						allowedToDrive = false;
 					end;
@@ -1135,7 +1156,7 @@ function courseplay:refillWorkTools(vehicle, driveOn, allowedToDrive, lx, lz, dt
 			end;
 
 			local fillTypesMatch = courseplay:fillTypesMatch(fillTrigger, workTool);
-			local canRefill = workToolSprayerFillLevelPct < driveOn and fillTypesMatch;
+			local canRefill = workToolSprayerFillLevelPct < driveOn and fillTypesMatch and not vehicle.cp.isLoaded;
 			courseplay:debug(('%s: canRefill:%s; fillTypesMatch:%s'):format(nameNum(vehicle),tostring(canRefill),tostring(fillTypesMatch)), 19);
 
 			if canRefill and vehicle.cp.mode == courseplay.MODE_LIQUIDMANURE_TRANSPORT then
