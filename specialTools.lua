@@ -126,6 +126,7 @@ function courseplay:setNameVariable(workTool)
 	--																		2 	= turns 2 times slower.																	
 	--																		0.5 = turns 2 times faster.
 	-- workTool.cp.componentNumAsDirectionNode:		(Component Index)		Used to set another component as the Direction Node. Starts from index 1 as the first component.
+	-- workTool.cp.useCrabSteeringMode:				(Crab Steering Index)	Used to overwrite the default crab steering mode when cp is driving
 	-- workTool.cp.haveInvertedToolNode:			(Boolean)				Set to true if the tool have it's rootnode pointing in the wrong direction
 	-- workTool.cp.directionNodeZOffset:			(Distance in meters)	If set, then the Direction Node will be offset by the value set. (Only useable for steerables)
 	-- workTool.cp.widthWillCollideOnTurn:			(Boolean)				If set, then the vehicle will reverse(if possible) further back, before turning to make room for the width of the tool
@@ -193,6 +194,7 @@ function courseplay:setNameVariable(workTool)
 
 	elseif workTool.cp.xmlFileName == 'holmerTerraDosT4_40.xml' then
 		workTool.cp.isHolmerTerraDosT4_40 = true;
+		workTool.cp.useCrabSteeringMode = 1;
 		workTool.cp.isHarvesterSteerable = true;
 		workTool.cp.pipeSide = 1;
 		workTool.cp.ridgeMarkerIndex = 6;
@@ -300,6 +302,11 @@ function courseplay:setNameVariable(workTool)
 		workTool.cp.isUrsusZ586 = true;
 		workTool.cp.notToBeReversed = true;
 
+	-- Kuhn SW4014 (Bale Wrapper) [Giants Kuhn DLC]
+	elseif workTool.cp.xmlFileName == 'kuhnSW4014.xml' then
+		workTool.cp.isKuhnSW4014 = true;
+		workTool.cp.notToBeReversed = true;
+
 	-- Arcusin FSX 63.72 (Bale Loader) [Giants]
 	elseif workTool.cp.xmlFileName == 'arcusinFSX6372.xml' then
 		workTool.cp.isArcusinFSX6372 = true;
@@ -317,6 +324,14 @@ function courseplay:setNameVariable(workTool)
 	elseif workTool.cp.xmlFileName == 'horschTiger10LT.xml' then
 		workTool.cp.realTurnNodeOffsetZ = -2.231;
 		workTool.cp.overwriteTurnRadius = 6;
+
+	-- Kuhn HR4004 [Giants Kuhn DLC]
+	elseif workTool.cp.xmlFileName == 'kuhnHR4004.xml' then
+		workTool.cp.isKuhnHR4004 = true;
+
+	-- Kuhn DC401 [Giants Kuhn DLC]
+	elseif workTool.cp.xmlFileName == 'kuhnDC401.xml' then
+		workTool.cp.isKuhnDC401 = true;
 
 	-- PLOUGHS [Giants]
 	-- Amazone Cayron 200 [Giants]
@@ -343,6 +358,9 @@ function courseplay:setNameVariable(workTool)
 		workTool.cp.implementWheelAlwaysOnGround = true;
 		workTool.cp.notToBeReversed = true;
 		workTool.cp.overwriteTurnRadius = 4.5;
+
+	elseif workTool.cp.xmlFileName == 'kuhnDiscolanderXM.xml' then
+		workTool.cp.isKuhnDiscolanderXM52 = true
 
 	-- SEEDERS [Giants]
 
@@ -512,8 +530,8 @@ function courseplay:handleSpecialTools(self,workTool,unfold,lower,turnOn,allowed
 		return false ,allowedToDrive,forceSpeedLimit;
 	end;
 
-	--Ursus Z586 BaleWrapper
-	if workTool.cp.isUrsusZ586 then
+	--Ursus Z586 BaleWrapper or Kuhn SW4014 BaleWrapper
+	if workTool.cp.isUrsusZ586 or workTool.cp.isKuhnSW4014 then
 		if workTool.baleWrapperState == 4 then
 			workTool:doStateChange(5)
 		end
@@ -538,6 +556,7 @@ function courseplay:askForSpecialSettings(self, object)
 	-- object.cp.haveInversedRidgeMarkerState:	(Boolean)				If the ridmarker is using the wrong side in auto mode, set this value to true
 	-- object.cp.realUnfoldDirectionIsReversed:	(Boolean)				If the tool unfolds when driving roads and folds when working fields, then set this one to true to reverse the folding order.
 	-- object.cp.specialUnloadDistance:			(Distance in meters)	Able to set the distance to the waiting point when it needs to unload. Used by bale loaders. Distance from trailer's turning point to the rear unloading point.
+	-- self.cp.changeDirAngle					(Angle in Degrees)		Overwrite the default automatic direction change angle, used in turn maneuvers.
 	-- self.cp.noStopOnEdge:                    (Boolean)               Set this to true if it dont need to stop the work tool while turning.
 	--																	Some work tool types automatically set this to true.
 	-- self.cp.noStopOnTurn:					(Boolean)				Set this to true if the work tool don't need to stop for 1½ sec before turning.
@@ -548,6 +567,20 @@ function courseplay:askForSpecialSettings(self, object)
 	courseplay:debug(('%s: askForSpecialSettings(..., %q)'):format(nameNum(self), nameNum(object)), 6);
 
 	local automaticToolOffsetX;
+	-- VEHICLES
+	if self.cp.isGrimmeTectron415 then
+		self.cp.changeDirAngle = 5;
+		self.cp.noStopOnTurn = true;
+		self.cp.noStopOnEdge = true;
+		self.isStrawEnabled = false;
+
+	elseif self.cp.isHolmerTerraDosT4_40 then
+		self.cp.changeDirAngle = 20;
+		self.cp.noStopOnTurn = true;
+		self.cp.noStopOnEdge = true;
+		self.cp.backMarkerOffset = 4.5;
+		self.isStrawEnabled = false;
+	end;
 
 	-- OBJECTS
 	if object.cp.isSP400F then
@@ -610,6 +643,11 @@ function courseplay:askForSpecialSettings(self, object)
 		self.cp.noStopOnTurn = true
 		automaticToolOffsetX = -2.5;
 
+	elseif object.cp.isKuhnSW4014 then
+		self.cp.noStopOnEdge = true
+		self.cp.noStopOnTurn = true
+		automaticToolOffsetX = -2.5;
+
 	elseif object.cp.isZunhammerVibro  then
 		local tractor = object.attacherVehicle; 
 		if tractor.cp.noStopOnEdge then
@@ -620,11 +658,10 @@ function courseplay:askForSpecialSettings(self, object)
 	elseif object.cp.isHolmerHR9 then
 		object.cp.frontMarkerOffsetCorection = 2;
 
-	elseif self.cp.isHolmerTerraDosT4_40 then
-		self.cp.noStopOnTurn = true;
-		self.cp.noStopOnEdge = true;
-		self.cp.backMarkerOffset = 4.5;
-		self.isStrawEnabled = false;
+	elseif object.cp.isKuhnDiscolanderXM52 then
+		object.cp.frontMarkerOffsetCorection = 5.6;
+		object.cp.backMarkerOffsetCorection = -4.5;
+
 	end;
 
 	if self.cp.mode == courseplay.MODE_LIQUIDMANURE_TRANSPORT then

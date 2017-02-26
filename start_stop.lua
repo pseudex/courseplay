@@ -384,8 +384,9 @@ function courseplay:start(self)
 	end;
 	
 	--check Crab Steering mode and set it to default
-	if self.crabSteering and self.crabSteering.state ~= self.crabSteering.aiSteeringModeIndex  then
-		self:setCrabSteering(self.crabSteering.aiSteeringModeIndex)
+	if self.crabSteering and (self.crabSteering.state ~= self.crabSteering.aiSteeringModeIndex or self.cp.useCrabSteeringMode ~= nil) then
+		local crabSteeringMode = self.cp.useCrabSteeringMode or self.crabSteering.aiSteeringModeIndex;
+		self:setCrabSteering(crabSteeringMode);
 	end
 
 	-- ok i am near the waypoint, let's go
@@ -618,7 +619,7 @@ function courseplay:stop(self)
 
 	--open all covers
 	if self.cp.workToolAttached and self.cp.tipperHasCover and self.cp.mode == 1 or self.cp.mode == 2 or self.cp.mode == 5 or self.cp.mode == 6 then
-		courseplay:openCloseCover(self, nil, false);
+		courseplay:openCloseCover(self,60,false,false,true);
 	end;
 
 	-- resetting variables

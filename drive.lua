@@ -16,7 +16,7 @@ function courseplay:drive(self, dt)
 	-- debug for workAreas
 	if courseplay.debugChannels[6] then
 		if self.cp.aiFrontMarker and self.cp.backMarkerOffset then
-			local directionNode	= self.isReverseDriving and self.cp.reverseDirectionNode or self.cp.DirectionNode;
+			local directionNode	= self.isReverseDriving and self.cp.reverseDrivingDirectionNode or self.cp.DirectionNode;
 			local tx1, ty1, tz1 = localToWorld(directionNode,3,1,self.cp.aiFrontMarker)
 			local tx2, ty2, tz2 = localToWorld(directionNode,3,1,self.cp.backMarkerOffset)
 			local nx, ny, nz = localDirectionToWorld(directionNode, -1, 0, 0)
@@ -107,6 +107,11 @@ function courseplay:drive(self, dt)
 	if courseplay.debugChannels[12] and self.cp.isTurning == nil then
 		local posY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 300, cz);
 		drawDebugLine(ctx, cty + 3, ctz, 0, 1, 0, cx, posY + 3, cz, 0, 0, 1)
+	end;
+	if CpManager.isDeveloper and self.cp.hasSpecializationArticulatedAxis and courseplay.debugChannels[12] then
+		local posY = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, cx, 300, cz);
+		local desX, _, desZ = localToWorld(self.cp.DirectionNode, 0, 0, 5);
+		drawDebugLine(ctx, cty + 3.5, ctz, 0, 0, 1, desX, cty + 3.5, desZ, 0, 0, 1);
 	end;
 
 	self.cp.distanceToTarget = courseplay:distance(cx, cz, ctx, ctz);
@@ -220,6 +225,7 @@ function courseplay:drive(self, dt)
 	local isBypassing = false
 	local isCrawlingToWait = false
 	local isWaitingThisLoop = false
+	local drive_on = false
 	local wayPointIsWait = self.Waypoints[self.cp.previousWaypointIndex].wait
 	local wayPointIsUnload = self.Waypoints[self.cp.previousWaypointIndex].unload
 	local wayPointIsRevUnload = wayPointIsUnload and self.Waypoints[self.cp.previousWaypointIndex].rev
@@ -231,15 +237,16 @@ function courseplay:drive(self, dt)
 		if self.cp.waitTimer == nil and self.cp.waitTime > 0 then
 			self.cp.waitTimer = self.timer + self.cp.waitTime * 1000;
 		end;
-		if 	self.cp.mode <= 2 then
+		if self.cp.mode <= 2 then
 			if wayPointIsUnload then
 				stopForUnload = courseplay:handleUnloading(self,wayPointIsRevUnload)
-			end
+			elseif self.cp.mode == 1 and wayPointIsWait then
+				CpManager:setGlobalInfoText(self, 'WAIT_POINT');
+			end;
 		elseif self.cp.mode == 3 and self.cp.workToolAttached then
 			courseplay:handleMode3(self, allowedToDrive, dt);
 
 		elseif self.cp.mode == 4 then
-			local drive_on = false
 			if self.cp.previousWaypointIndex == self.cp.startWork then
 				courseplay:setVehicleWait(self, false);
 			elseif self.cp.previousWaypointIndex == self.cp.stopWork and self.cp.abortWork ~= nil then
@@ -274,8 +281,20 @@ function courseplay:drive(self, dt)
 					CpManager:setGlobalInfoText(self, 'UNLOADING_BALE');
 				else
 					CpManager:setGlobalInfoText(self, 'OVERLOADING_POINT');
-				end
-				if self.cp.totalFillLevelPercent == 0 or drive_on then
+
+					-- Set Timer if unloading pipe takes time before empty.
+					if self.getFirstEnabledFillType and self.pipeParticleSystems and self.cp.totalFillLevelPercent > 0 then
+						local filltype = self:getFirstEnabledFillType();
+						if filltype ~= FillUtil.FILLTYPE_UNKNOWN and self.pipeParticleSystems[filltype] then
+							local stopTime = self.pipeParticleSystems[filltype][1].stopTime;
+							if stopTime then
+								courseplay:setCustomTimer(self, "waitUntilPipeIsEmpty", stopTime);
+							end;
+						end;
+					end;
+				end;
+				if (self.cp.totalFillLevelPercent == 0 and courseplay:timerIsThrough(self, "waitUntilPipeIsEmpty")) or drive_on then
+					courseplay:resetCustomTimer(self, "waitUntilPipeIsEmpty", true);
 					courseplay:setVehicleWait(self, false);
 				end;
 			end;
@@ -297,8 +316,20 @@ function courseplay:drive(self, dt)
 						end
 					else
 						CpManager:setGlobalInfoText(self, 'OVERLOADING_POINT');
+
+						-- Set Timer if unloading pipe takes time before empty.
+						if self.getFirstEnabledFillType and self.pipeParticleSystems and self.cp.totalFillLevelPercent > 0 then
+							local filltype = self:getFirstEnabledFillType();
+							if filltype ~= FillUtil.FILLTYPE_UNKNOWN and self.pipeParticleSystems[filltype] then
+								local stopTime = self.pipeParticleSystems[filltype][1].stopTime;
+								if stopTime then
+									courseplay:setCustomTimer(self, "waitUntilPipeIsEmpty", stopTime);
+								end;
+							end;
+						end;
 					end
-				else
+				elseif courseplay:timerIsThrough(self, "waitUntilPipeIsEmpty") then
+					courseplay:resetCustomTimer(self, "waitUntilPipeIsEmpty", true);
 					courseplay:setVehicleWait(self, false);
 					self.cp.isUnloaded = true
 				end
@@ -542,12 +573,14 @@ function courseplay:drive(self, dt)
 	self.cp.inTraffic = false;
 
 	-- HANDLE TIPPER COVER
-	if self.cp.tipperHasCover and self.cp.automaticCoverHandling and (self.cp.mode == 1 or self.cp.mode == 2 or self.cp.mode == 5 or self.cp.mode == 6) then
+	if self.cp.tipperHasCover and self.cp.automaticCoverHandling and (self.cp.mode == 1 or self.cp.mode == 2 or self.cp.mode == 4 or self.cp.mode == 5 or self.cp.mode == 6) then
 		local showCover = false;
 
-		if self.cp.mode ~= 6 then
+		if self.cp.mode ~= 6 and self.cp.mode ~= 4 then
 			local minCoverWaypoint = self.cp.mode == 1 and 4 or 3;
 			showCover = self.cp.waypointIndex >= minCoverWaypoint and self.cp.waypointIndex < self.cp.numWaypoints and self.cp.currentTipTrigger == nil and self.cp.trailerFillDistance == nil and not courseplay:waypointsHaveAttr(self, self.cp.waypointIndex, -1, 2, "unload", true, false);
+		elseif self.cp.mode == 4 then 
+			showCover = true; --will be handled in courseplay:openCloseCover() to prevent extra loops
 		else
 			showCover = not workArea and self.cp.currentTipTrigger == nil;
 		end;
@@ -1053,13 +1086,19 @@ function courseplay:getSpeedWithLimiter(vehicle, refSpeed)
 	return refSpeed, speedLimitActivated;
 end
 
-function courseplay:openCloseCover(vehicle, dt, showCover, isAtTipTrigger)
+function courseplay:openCloseCover(vehicle, dt, showCover, isAtTipTrigger,stopOrder)
 	for i,twc in pairs(vehicle.cp.tippersWithCovers) do
 		local tIdx, coverType, showCoverWhenTipping, coverItems = twc.tipperIndex, twc.coverType, twc.showCoverWhenTipping, twc.coverItems;
 		local tipper = vehicle.cp.workTools[tIdx];
 
 		-- default Giants trailers
 		if coverType == 'defaultGiants' then
+			local isSprayer, isSowingMachine = courseplay:isSprayer(tipper), courseplay:isSowingMachine(tipper);
+			if (vehicle.cp.mode == 4 and tipper.fillTriggers[1] ~= nil)
+			or (stopOrder and (isSprayer or isSowingMachine)) then
+				return
+			end
+	
 			if tipper.isCoverOpen == showCover then
 				tipper:setCoverState(not showCover);
 			end;
@@ -1582,10 +1621,12 @@ function courseplay:setOwnFillLevelsAndCapacities(workTool,mode)
 end
 
 function courseplay:setCollisionDirection(node, col, colDirX, colDirZ)
-  local parent = getParent(col)
-  local colDirY = 0
-  if parent ~= node then
-    colDirX, colDirY, colDirZ = worldDirectionToLocal(parent, localDirectionToWorld(node, colDirX, 0, colDirZ))
-  end
-  setDirection(col, colDirX, colDirY, colDirZ, 0, 1, 0)
-end
+	local parent = getParent(col)
+	local colDirY = 0
+	if parent ~= node then
+		colDirX, colDirY, colDirZ = worldDirectionToLocal(parent, localDirectionToWorld(node, colDirX, 0, colDirZ))
+	end
+	if not (colDirX == 0 and colDirZ == 0) then
+		setDirection(col, colDirX, colDirY, colDirZ, 0, 1, 0);
+	end;
+end;

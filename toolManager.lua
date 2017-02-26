@@ -214,13 +214,13 @@ function courseplay:updateWorkTools(vehicle, workTool, isImplement)
 	-- MODE 4: FERTILIZER AND SEEDING
 	elseif vehicle.cp.mode == 4 then
 		local isSprayer, isSowingMachine = courseplay:isSprayer(workTool), courseplay:isSowingMachine(workTool);
-		if isSprayer or isSowingMachine or workTool.cp.isTreePlanter then
+		if isSprayer or isSowingMachine or workTool.cp.isTreePlanter or workTool.cp.isKuhnDC401 or workTool.cp.isKuhnHR4004 then
 			hasWorkTool = true;
 			vehicle.cp.workTools[#vehicle.cp.workTools + 1] = workTool;
 			courseplay:setMarkers(vehicle, workTool)
 			vehicle.cp.hasMachinetoFill = true;
-			vehicle.cp.noStopOnEdge = isSprayer;
-			vehicle.cp.noStopOnTurn = isSprayer;
+			vehicle.cp.noStopOnEdge = isSprayer and not (isSowingMachine or workTool.cp.isTreePlanter);
+			vehicle.cp.noStopOnTurn = isSprayer and not (isSowingMachine or workTool.cp.isTreePlanter);
 			if isSprayer then
 				vehicle.cp.hasSprayer = true;
 			end;
@@ -442,7 +442,7 @@ function courseplay:setTipRefOffset(vehicle)
 end;
 
 function courseplay:setMarkers(vehicle, object)
-	local realDirectionNode		= vehicle.isReverseDriving and vehicle.cp.reverseDirectionNode or vehicle.cp.DirectionNode;
+	local realDirectionNode		= vehicle.isReverseDriving and vehicle.cp.reverseDrivingDirectionNode or vehicle.cp.DirectionNode;
 	local aLittleBitMore 		= 1;
 	local pivotJointNode 		= courseplay:getPivotJointNode(object);
 	object.cp.backMarkerOffset 	= nil;
@@ -695,7 +695,7 @@ function courseplay:load_tippers(vehicle, allowedToDrive)
 		end;
 	end;
 
-	local unloadDistance = -100;
+	local unloadDistance = 1000;
 	local trailerX,_,trailerZ = getWorldTranslation(currentTrailer.cp.realUnloadOrFillNode);
 
 	if not driveOn then
@@ -706,8 +706,10 @@ function courseplay:load_tippers(vehicle, allowedToDrive)
 			local _,_,z = worldToLocal(directionNode, trailerX, vehicleY, trailerZ);
 			vehicle.cp.trailerFillDistance = z + 0.5;
 
-			local triggerX,_,triggerZ = getWorldTranslation(currentTrailer.cp.currentSiloTrigger.rootNode);
-			_,_,unloadDistance = worldToLocal(directionNode, triggerX, vehicleY, triggerZ);
+			if currentTrailer.cp.currentSiloTrigger ~= nil then
+				local triggerX,_,triggerZ = getWorldTranslation(currentTrailer.cp.currentSiloTrigger.rootNode);
+				_,_,unloadDistance = worldToLocal(directionNode, triggerX, vehicleY, triggerZ);
+			end;
 		elseif vehicle.cp.tipperLoadMode == 2 then
 			local cx, cz = vehicle.Waypoints[2].cx, vehicle.Waypoints[2].cz;
 			if not vehicle.cp.trailerFillDistance then
@@ -1097,7 +1099,7 @@ end;
 function courseplay:refillWorkTools(vehicle, driveOn, allowedToDrive, lx, lz, dt)
 	for _,workTool in ipairs(vehicle.cp.workTools) do
 		if workTool.cp.fillLevel == nil or workTool.cp.capacity == nil then
-			return;
+			return allowedToDrive, lx, lz;
 		end;
 		local workToolSeederFillLevelPct = workTool.cp.seederFillLevelPercent;
 		local workToolSprayerFillLevelPct = workTool.cp.sprayerFillLevelPercent;

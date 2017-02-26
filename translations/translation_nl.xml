@@ -22,7 +22,7 @@
 		<text name="COURSEPLAY_MODE_5" 									 text="Type: Verladen (van start naar finish)" />
 		<text name="COURSEPLAY_MODE_6" 									 text="Type: Veldwerk" />
 		<text name="COURSEPLAY_MODE_7" 									 text="Type: Combine zelflossen" />
-		<text name="COURSEPLAY_MODE_8" 									 text="Type: Mesttransport" />
+		<text name="COURSEPLAY_MODE_8" 									 text="Type: Liquid product transport" />  <!-- TODO: Retranslate to new name. -->
 		<text name="COURSEPLAY_MODE_9" 									 text="Type: Vullen en legen shovel" />
 		<text name="COURSEPLAY_MODE_10" 								 text="Type: egaliseren en comprimeren" />
 		<text name="COURSEPLAY_CONTINUE" 								 text="doorgaan" />
@@ -248,7 +248,7 @@
 		<text name="input_COURSEPLAY_MENU_ACCEPT_SECONDARY" 			 text="Courseplay: tweede menu accepteren" />
 		<text name="input_COURSEPLAY_HUD" 								 text="Toon/verberg Courseplay HUD" />
 		<text name="input_COURSEPLAY_START_STOP" 						 text="Courseplay: rijd route/stop bestuurder" />
-		<text name="input_COURSEPLAY_CANCELWAIT" 						 text="Courseplay: continue" />    <!-- TODO: TRANSLATE! -->
+		<text name="input_COURSEPLAY_CANCELWAIT" 						 text="Courseplay: door gaan" />    
 		<text name="input_COURSEPLAY_DRIVENOW" 							 text="Courseplay: nu rijden" />
 		<text name="input_COURSEPLAY_STOP_AT_END" 						 text="Courseplay: stop bij laatste punt of volgende trigger" />
 		<text name="input_COURSEPLAY_NEXTMODE" 							 text="Courseplay: volgende modus" />

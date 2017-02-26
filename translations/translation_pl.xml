@@ -22,7 +22,7 @@
 		<text name="COURSEPLAY_MODE_5"									 text="Tryb: Transport (jazda od początku do końca)" />
 		<text name="COURSEPLAY_MODE_6"									 text="Tryb: Prace polowe" />
 		<text name="COURSEPLAY_MODE_7"									 text="Tryb: Kombajn (samoczynny rozładunek)" />
-		<text name="COURSEPLAY_MODE_8"									 text="Tryb: Transport obornika" />
+		<text name="COURSEPLAY_MODE_8" 									 text="Tryb: Transport płynnego produktu" />
 		<text name="COURSEPLAY_MODE_9"									 text="Tryb: Napełnij i rozładuj łychę" />
 		<text name="COURSEPLAY_MODE_10" 								 text="Tryb: Wyrównywanie i ugniatanie" />
 		<text name="COURSEPLAY_CONTINUE"								 text="Kontynuuj" />
@@ -114,7 +114,7 @@
 		<text name="COURSEPLAY_PAGE_TITLE_GENERAL_SETTINGS"				 text="Ustawienia" />
 		<text name="COURSEPLAY_COMBINE_IS_TURNING"						 text="Kombajn zawraca" />
 		<text name="COURSEPLAY_NO_WORK_AREA"							 text="brak obszaru roboczego dla tego kursu" />
-		<text name="COURSEPLAY_COMBINED_COURSES"						 text="kursy kombajnu" />
+		<text name="COURSEPLAY_COMBINED_COURSES"						 text="połączone kursy" />
 		<text name="COURSEPLAY_DRIVE_BEHIND_COMBINE"					 text="Podjazd do kombajnu" />
 		<text name="COURSEPLAY_DRIVE_NEXT_TO_COMBINE"					 text="Odjazd od kombajnu" />
 		<text name="COURSEPLAY_DRIVE_TO_COMBINE"						 text="Przejazd do kombajnu" />

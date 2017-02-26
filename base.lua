@@ -285,8 +285,8 @@ function courseplay:load(savegame)
 
 	-- REVERSE DRIVING SETUP
 	if self.cp.hasSpecializationReverseDriving then
-		self.cp.reverseDirectionNode = courseplay:createNewLinkedNode(self, "realReverseDirectionNode", self.cp.DirectionNode);
-		setRotation(self.cp.reverseDirectionNode, 0, math.rad(180), 0);
+		self.cp.reverseDrivingDirectionNode = courseplay:createNewLinkedNode(self, "realReverseDrivingDirectionNode", self.cp.DirectionNode);
+		setRotation(self.cp.reverseDrivingDirectionNode, 0, math.rad(180), 0);
 	end;
 
 	-- TRIGGERS
@@ -575,9 +575,10 @@ function courseplay:draw()
 		local bx,bz = fillUnit.bx,fillUnit.bz
 		local hx,hz = fillUnit.hx +(fillUnit.wx-fillUnit.sx) ,fillUnit.hz +(fillUnit.wz-fillUnit.sz)
 		local y = 0
+		local height = fillUnit.height or 0.5;
 		if self.cp.mode10.leveling then
 			if self.cp.mode10.automaticHeigth then
-				y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, sx, 1, sz)+ fillUnit.height;
+				y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, sx, 1, sz)+ height;
 			else
 				y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, sx, 1, sz) + self.cp.mode10.shieldHeight + self.cp.tractorHeight ;
 			end
@@ -1596,3 +1597,15 @@ function courseplay:getSaveAttributesAndNodes(nodeIdent)
 	return attributes, nodes;
 end
 
+
+-- This is to prevent the selfPropelledPotatoHarvester from turning off while turning
+function courseplay.setIsTurnedOn(self, originalFunction, isTurnedOn, noEventSend)
+	if self.typeName and self.typeName == "selfPropelledPotatoHarvester" then
+		if self.getIsCourseplayDriving and self:getIsCourseplayDriving() and self.cp.isTurning and not isTurnedOn then
+			isTurnedOn = true;
+		end;
+	end;
+
+	originalFunction(self, isTurnedOn, noEventSend);
+end;
+TurnOnVehicle.setIsTurnedOn = Utils.overwrittenFunction(TurnOnVehicle.setIsTurnedOn, courseplay.setIsTurnedOn);
