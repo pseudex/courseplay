@@ -463,7 +463,7 @@ end
 function courseplay:moveShield(vehicle,moveUp,dt,fixAlpha)
 	local leveler = vehicle.cp.workTools[1]
 	local move = 0
-	local factor = 0.4
+	local factor = 0.8
 	if moveUp == "up" then
 		move = -factor
 	elseif moveUp == "down" then

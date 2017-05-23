@@ -60,13 +60,15 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 			end
 			if vehicle.cp.mode9TargetSilo then
 				if vehicle.cp.BunkerSiloMap == nil then
-				local label = vehicle.cp.mode9TargetSilo.saveId or "heap"
-				courseplay:debug(('%s: vehicle.cp.mode9TargetSilo = %s call createMap'):format(nameNum(vehicle),tostring(label)), 10);
+					courseplay:debug(('%s: vehicle.cp.mode9TargetSilo = %s call createMap'):format(nameNum(vehicle),tostring(vehicle.cp.mode9TargetSilo.saveId)), 10);
 					vehicle.cp.BunkerSiloMap = courseplay:createBunkerSiloMap(vehicle, vehicle.cp.mode9TargetSilo)
 					if vehicle.cp.BunkerSiloMap ~= nil then
 						local stopSearching = false
 						local mostFillLevelAtLine = 0
 						local mostFillLevelIndex = 2
+						
+						--get bunkerFilling
+						local bunkerFilling=courseplay:getBunkerSiloFilling(vehicle.cp.BunkerSiloMap)
 						for lineIndex, line in pairs(vehicle.cp.BunkerSiloMap) do
 							if stopSearching then
 								break
@@ -77,7 +79,8 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 									mostFillLevelAtLine = fillUnit.fillLevel
 									mostFillLevelIndex = column
 								end
-								if column == #line and mostFillLevelAtLine > 0 then
+								
+								if column == #line and mostFillLevelAtLine > math.min(vehicle.cp.shovel.cp.capacity*0.1,200) then --avoid little quantities
 									fillUnit = line[mostFillLevelIndex]
 									if vehicle.cp.mode9SavedLastFillLevel == courseplay:round(fillUnit.fillLevel,1) then
 										courseplay:debug(('%s triesTheSameFillUnit fillLevel: %s'):format(nameNum(vehicle),tostring(vehicle.cp.mode9SavedLastFillLevel)),10)
@@ -88,14 +91,16 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 														column = mostFillLevelIndex;
 																}
 									vehicle.cp.mode9SavedLastFillLevel = courseplay:round(fillUnit.fillLevel,1)
-									
-									stopSearching = true
-									break
+									if bunkerFilling.fillType == fillUnit.fillType or bunkerFilling.fillType == 0 then
+										stopSearching = true
+										courseplay:debug(('%s fillUnit found: %s'):format(nameNum(vehicle),bunkerFilling.fillTypeName),10)
+										break
+									end
 								end
 							end
 						end
 					end
-				else
+				--else
 					
 					
 				
@@ -105,19 +110,15 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 
 
 	-- STATE 2: PREPARE LOADING
-	elseif vehicle.cp.shovelState == 2 then
-		local heapEnd = false
+	elseif vehicle.cp.shovelState == 2 then	
+
 		if vehicle.cp.mode9TargetSilo and vehicle.cp.BunkerSiloMap and vehicle.cp.actualTarget then
 			local targetUnit = vehicle.cp.BunkerSiloMap[vehicle.cp.actualTarget.line][vehicle.cp.actualTarget.column]
 			local cx , cz = targetUnit.cx, targetUnit.cz
 			local nx,ny,nz = getWorldTranslation(vehicle.cp.shovel.shovelTipReferenceNode)
 			local _,_,backUpZ = worldToLocal(vehicle.cp.DirectionNode, cx , targetUnit.y , cz); -- its the savety switch in case I miss the point 
 			local distanceToTarget =  courseplay:distance(nx, nz, cx, cz) --distance from shovel to target
-			
 			if distanceToTarget < 1 or backUpZ < 2 then
-				if vehicle.cp.actualTarget.line == #vehicle.cp.BunkerSiloMap and vehicle.cp.mode9TargetSilo.type and vehicle.cp.mode9TargetSilo.type == "heap" then
-					heapEnd = true
-				end
 				vehicle.cp.actualTarget.line = math.min(vehicle.cp.actualTarget.line + 1,#vehicle.cp.BunkerSiloMap)
 				vehicle.cp.mode9triesTheSameFillUnit = false
 			end
@@ -146,7 +147,7 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 			vehicle.cp.shovelLastFillLevel = fillLevelPct;
 		end;
 						--vv TODO checkif its a Giants Bug the Shovel never gets 100%
-		if fillLevelPct >= 99 or vehicle.cp.isLoaded or vehicle.cp.slippingStage == 2 or heapEnd then
+		if fillLevelPct >= 99 or vehicle.cp.isLoaded or vehicle.cp.slippingStage == 2 then
 			if not vehicle.cp.isLoaded then
 				local _,ty,_ = getWorldTranslation(vehicle.cp.DirectionNode);
 				local _,_,sfpZ = worldToLocal(vehicle.cp.DirectionNode, vehicle.Waypoints[vehicle.cp.shovelFillStartPoint].cx , ty , vehicle.Waypoints[vehicle.cp.shovelFillStartPoint].cz);
@@ -249,6 +250,7 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 
 	-- STATE 5: UNLOADING
 	elseif vehicle.cp.shovelState == 5 then
+	    vehicle.cp.BunkerSiloMap = nil;
 		--courseplay:handleSpecialTools(vehicle,workTool,unfold,lower,turnOn,allowedToDrive,cover,unload)
 		courseplay:handleSpecialTools(vehicle,vehicle,true,nil,nil,nil,nil,nil)
 		if vehicle.cp.shovel.trailerFound then
@@ -276,10 +278,6 @@ function courseplay:handle_mode9(vehicle, fillLevelPct, allowedToDrive,lx,lz, dt
 			allowedToDrive = false;
 		end;
 
-		if vehicle.cp.mode9TargetSilo and vehicle.cp.mode9TargetSilo.type and vehicle.cp.mode9TargetSilo.type == "heap" then
-			vehicle.cp.mode9TargetSilo = nil
-		end
-		
 	-- STATE 6: RETURN FROM BGA TO START POINT
 	elseif vehicle.cp.shovelState == 6 then
 		courseplay:handleSpecialTools(vehicle,vehicle,false,nil,nil,nil,nil,nil);
@@ -525,7 +523,7 @@ function courseplay:createBunkerSiloMap(vehicle, Silo,width, height)
 	local lastValidfillType = 0
 	local map = {}
 	for heightIndex = 1,heightCount do
-		map[heightIndex]={}
+		map[heightIndex]={}		
 		for widthIndex = 1,widthCount do
 			local newWx = sx + widthLengthX
 			local newWz = sz + widthLengthZ
@@ -542,21 +540,14 @@ function courseplay:createBunkerSiloMap(vehicle, Silo,width, height)
 			local bx = sx + (widthLengthX/2) + (heightLengthX/2)  
 			local bz = sz + (widthLengthZ/2) + (heightLengthZ/2)
 			local offset = 0
-			if vehicle.cp.mode9TargetSilo.type and vehicle.cp.mode9TargetSilo.type == "heap" then
-				offset = unitWidth/2
+			if widthIndex == 1 then
+				offset = getOffTheWall+ (vehicle.cp.workWidth/2)
+			elseif widthIndex == widthCount then
+				offset = unitWidth- (getOffTheWall+ (vehicle.cp.workWidth/2))
 			else
-				if widthIndex == 1 then
-					offset = getOffTheWall+ (vehicle.cp.workWidth/2)
-				elseif widthIndex == widthCount then
-					offset = unitWidth- (getOffTheWall+ (vehicle.cp.workWidth/2))
-				else
-					offset = unitWidth/2
-				end
+				offset = unitWidth/2
 			end
 			local cx,cz = sx +(widthDirX*offset)+(heightLengthX/2),sz +(widthDirZ*offset)+ (heightLengthZ/2)
-			if vehicle.cp.mode == courseplay.MODE_SHOVEL_FILL_AND_EMPTY and heightIndex == heightCount then
-				cx,cz = sx +(widthDirX*offset)+(heightLengthX),sz +(widthDirZ*offset)+ (heightLengthZ)
-			end
 			local unitArea = unitWidth*unitHeigth
 			
 			map[heightIndex][widthIndex] ={
@@ -577,7 +568,7 @@ function courseplay:createBunkerSiloMap(vehicle, Silo,width, height)
 										bunkerLength = bunkerLength;
 										bunkerWidth = bunkerWidth;
 											}
-											
+			
 			sx = map[heightIndex][widthIndex].wx
 			sz = map[heightIndex][widthIndex].wz
 		end
@@ -609,133 +600,75 @@ function courseplay:createBunkerSiloMap(vehicle, Silo,width, height)
 	return map
 end
 
-function courseplay:getMode9TargetBunkerSilo(vehicle,forcedPoint)
-	local pointIndex = 0
-	if forcedPoint then
-		 pointIndex = forcedPoint;
-	else
-		pointIndex = vehicle.cp.shovelFillStartPoint+1
+--get fillType of silo; calulated by the max fillinglevel
+function courseplay:getBunkerSiloFilling(map)
+	local FillLevels={}
+	local maxValues={fillType=0,fillTypeName="", fillLevel=0,totalFillLevel=0,numFillTypes=0}
+	-- group levels by fillType
+	if map == nil then
+		return maxValues
 	end
-	local x,z = vehicle.Waypoints[pointIndex].cx,vehicle.Waypoints[pointIndex].cz			
-	local tx,tz = x,z + 0.50
-	local p1x,p1z,p2x,p2z,p1y,p2y = 0,0,0,0,0,0
-	if g_currentMission.bunkerSilos ~= nil then
-		for _, bunker in pairs(g_currentMission.bunkerSilos) do
-			local x1,z1 = bunker.bunkerSiloArea.sx,bunker.bunkerSiloArea.sz
-			local x2,z2 = bunker.bunkerSiloArea.wx,bunker.bunkerSiloArea.wz
-			local x3,z3 = bunker.bunkerSiloArea.hx,bunker.bunkerSiloArea.hz
-			bunker.type = "silo"
-			if Utils.hasRectangleLineIntersection2D(x1,z1,x2-x1,z2-z1,x3-x1,z3-z1,x,z,tx-x,tz-z) then
-				return bunker
+	local fillType
+	for lineIndex, line in pairs(map) do
+		for tileIndex, tile in pairs(line) do 
+			fillType=tile.fillType
+			if  fillType~=nil and fillType ~=0 and tile.fillLevel ~= nil and tile.fillLevel > 0 then
+			    if FillLevels[fillType] == nil then FillLevels[fillType] = 0 end
+				FillLevels[fillType] = FillLevels[fillType]+tile.fillLevel
 			end
 		end
 	end
-	
-	--it's not a bunkersSilo, try to find a heap
-	local heapFillType = 0
-	if vehicle.cp.mode == courseplay.MODE_SHOVEL_FILL_AND_EMPTY then
-		p1x,p1z = vehicle.Waypoints[vehicle.cp.shovelFillStartPoint].cx,vehicle.Waypoints[vehicle.cp.shovelFillStartPoint].cz;
-		p2x,p2z = vehicle.Waypoints[vehicle.cp.shovelFillEndPoint].cx,vehicle.Waypoints[vehicle.cp.shovelFillEndPoint].cz;
-		p1y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, p1x, 1, p1z);
-		p2y = getTerrainHeightAtWorldPos(g_currentMission.terrainRootNode, p2x, 1, p2z);
-		heapFillType = TipUtil.getFillTypeAtLine(p1x, p1y, p1z, p2x, p2y, p2z, 5)
-	end
-	
-	if heapFillType ~= 0 then
-		courseplay:debug(string.format("%s: heap with %s found",nameNum(vehicle),tostring(heapFillType)),10)
-		return courseplay:getMode9HeapsMinMaxCoords(vehicle,heapFillType,p1x,p1y,p1z,p2x,p2y,p2z)
-	else
-		return
-	end
-	return false
+
+	--calc max values		
+	for i,fillLevel in pairs(FillLevels) do 
+		if fillLevel > maxValues.fillLevel and string.upper(FillUtil.fillTypeIndexToDesc[i].name) ~= "TARP" then --ignore tarp (stuff under the plane))
+			maxValues.fillLevel = fillLevel
+			if FillUtil~=nil and FillUtil.fillTypeIndexToDesc[i] ~= nil then
+				maxValues.fillTypeName=FillUtil.fillTypeIndexToDesc[i].name
+			end
+			courseplay:debug(('Level %s: %d'):format(maxValues.fillTypeName,fillLevel), 10);		
+		end 
+		maxValues.totalFillLevel = maxValues.totalFillLevel + fillLevel
+		maxValues.numFillTypes = maxValues.numFillTypes + 1
+	end	
+	courseplay:debug(('number of types: %d (%d)l'):format(maxValues.numFillTypes,maxValues.totalFillLevel), 10);
+	return maxValues	
 end
 
-function courseplay:getMode9HeapsMinMaxCoords(vehicle,heapFillType,p1x,p1y,p1z,p2x,p2y,p2z)
+function courseplay:getMode9TargetBunkerSilo(vehicle, forcedPoint)
+    local pointIndex = 0
+    local searchPoints = 0;-- look into the next xx waypoints to find the bunker silo
+    if forcedPoint then
+        searchPoints = 5;
+        pointIndex = forcedPoint;
+    else
+        searchPoints = 15;        
+        pointIndex = vehicle.cp.shovelFillStartPoint + 1
+    end
 
-	--create temp node 
-	local point = createTransformGroup("cpTempHeapFindingPoint");
-	link(g_currentMission.terrainRootNode, point);
-
-	-- Rotate it in the right direction
-	local dx,_,dz, distance = courseplay:getWorldDirection(p1x,p1y,p1z,p2x,p2y,p2z);
-	
-	setTranslation(point,p1x,p1y,p1z);
-	local yRot = Utils.getYRotationFromDirection(dx, dz);
-	setRotation(point, 0, yRot, 0);
-
-	--debug line vor search area to be sure, the point is set correctly
-	vehicle.cp.tempMOde9PointX,vehicle.cp.tempMOde9PointY,vehicle.cp.tempMOde9PointZ = getWorldTranslation(point)
-	vehicle.cp.tempMOde9PointX2,vehicle.cp.tempMOde9PointY2,vehicle.cp.tempMOde9PointZ2 = localToWorld(point,0,0,distance*2)
-	
-	-- move the line to find out the size of the heap
-	
-	--find maxX 
-	local stepSize = 0.1
-	local searchWidth = 0.1
-	local maxX = 0
-	local tempStartX, tempStartZ,tempHeightX,tempHeightZ = 0,0,0,0;
-	for i=stepSize,250,stepSize do
-		tempStartX,tempStartY,tempStartZ = localToWorld(point,i,0,0)
-		tempHeightX,tempHeightY,tempHeightZ= localToWorld(point,i,0,distance*2)
-		local fillType = TipUtil.getFillTypeAtLine(tempStartX, tempStartY, tempStartZ,tempHeightX,tempHeightY,tempHeightZ, searchWidth)
-		--print(string.format("fillType:%s distance: %.1f",tostring(fillType),i))	
-		if fillType ~= heapFillType then
-			maxX = i-stepSize
-			courseplay:debug("maxX= "..tostring(maxX),10)
-			break
-		end
-	end
-	
-	--find minX 
-	local minX = 0
-	local tempStartX, tempStartZ,tempHeightX,tempHeightZ = 0,0,0,0;
-	for i=stepSize,250,stepSize do
-		tempStartX,tempStartY,tempStartZ = localToWorld(point,-i,0,0)
-		tempHeightX,tempHeightY,tempHeightZ= localToWorld(point,-i,0,distance*2)
-		local fillType = TipUtil.getFillTypeAtLine(tempStartX,tempStartY, tempStartZ,tempHeightX,tempHeightY,tempHeightZ, searchWidth)
-		--print(string.format("fillType:%s distance: %.1f",tostring(fillType),i))	
-		if fillType ~= heapFillType then
-			minX = i-stepSize
-			courseplay:debug("minX= "..tostring(minX),10)
-			break
-		end
-	end
-	
-	--find minZ and maxZ
-	local foundHeap = false
-	local minZ, maxZ = 0,0
-	for i=0,250,stepSize do
-		tempStartX,tempStartY,tempStartZ = localToWorld(point,maxX,0,i)
-		tempHeightX,tempHeightY,tempHeightZ= localToWorld(point,-minX,0,i)
-		local fillType = TipUtil.getFillTypeAtLine(tempStartX, tempStartY, tempStartZ,tempHeightX,tempHeightY,tempHeightZ, searchWidth)
-		if not foundHeap then
-			if fillType == heapFillType then
-				foundHeap = true
-				minZ = i-stepSize
-				courseplay:debug("minZ= "..tostring(minZ),10)
-			end
-		else
-			if fillType ~= heapFillType then
-				maxZ = i-stepSize+1
-				courseplay:debug("maxZ= "..tostring(maxZ),10)
-				break
-			end
-		end	
-	end
-	
-	--set found values into bunker table and return it
-	local bunker = {}
-	bunker.bunkerSiloArea = {}
-	bunker.bunkerSiloArea.sx,_,bunker.bunkerSiloArea.sz = localToWorld(point,maxX,0,minZ);
-	bunker.bunkerSiloArea.wx,_,bunker.bunkerSiloArea.wz = localToWorld(point,-minX,0,minZ)
-	bunker.bunkerSiloArea.hx,_,bunker.bunkerSiloArea.hz = localToWorld(point,maxX,0,maxZ)
-	bunker.type = "heap"
-
-		
-	-- Clean up the temporary node.
-	unlink(point);
-	delete(point);
-	
-	
-	return bunker
+    local x, z
+    local tx, tz
+    repeat
+        if vehicle.Waypoints[pointIndex] == nil then return false end
+        x, z = vehicle.Waypoints[pointIndex].cx, vehicle.Waypoints[pointIndex].cz
+        tx, tz = x, z + 0.50
+        if g_currentMission.bunkerSilos ~= nil then
+            for _, bunker in pairs(g_currentMission.bunkerSilos) do
+                local x1, z1 = bunker.bunkerSiloArea.sx, bunker.bunkerSiloArea.sz
+                local x2, z2 = bunker.bunkerSiloArea.wx, bunker.bunkerSiloArea.wz
+                local x3, z3 = bunker.bunkerSiloArea.hx, bunker.bunkerSiloArea.hz
+                if Utils.hasRectangleLineIntersection2D(x1, z1, x2 - x1, z2 - z1, x3 - x1, z3 - z1, x, z, tx - x, tz - z) then
+                    courseplay:debug(('%s: BunkerSilo found (search,point): %d, %d'):format(nameNum(vehicle),searchPoints, pointIndex), 10);
+                    return bunker
+                end
+            end
+        else
+            return false
+        end
+        searchPoints = searchPoints - 1
+        pointIndex = pointIndex + 1
+        --courseplay:debug(('%s: BunkerSilo still not found (search,point): %d, %d'):format(nameNum(vehicle),searchPoints, pointIndex), 10);
+    until (searchPoints <= 0)
+    courseplay:debug(('%s: no BunkerSilo found, is it just a triggerles heap?'):format(nameNum(vehicle)), 10);
+    return false
 end
