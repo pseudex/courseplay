@@ -5,9 +5,14 @@ function CpManager:setUpDebugChannels()
 	local defaultActive = {};
 	if CpManager.isDeveloper then
 		-- Enable specified debugmode by default for Satis Only!
-		if g_gameSettings:getValue("nickname") == "Sa!is" then
+		if getMD5(g_gameSettings:getValue("nickname")) == "9a9f028043394ff9de1cf6c905b515c1" then
 			--defaultActive[12] = true;
 			--defaultActive[14] = true;
+		end;
+		if getMD5(g_gameSettings:getValue("nickname")) == "b74ad095badc54d4334039f2f73f240e" then
+			defaultActive[6] = true;
+			defaultActive[12] = true;
+			defaultActive[14] = true;
 		end;
 	end;
 
@@ -36,7 +41,7 @@ function CpManager:setUpDebugChannels()
 		 [8] = 'Debug: course management';
 		 [9] = 'Debug: path finding';
 		[10] = 'Debug: mode9: shovel loading/unloading';
-		[11] = 'Debug: mode7: combine self-unloading';
+		[11] = 'Debug: Combine self-unloading and heaps';
 		[12] = 'Debug: all other debugs (uncategorized)';
 		[13] = 'Debug: reverse driving';
 		[14] = 'Debug: driving specific';

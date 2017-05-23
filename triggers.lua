@@ -17,7 +17,7 @@ function courseplay:cpOnTrafficCollisionTrigger(triggerId, otherId, onEnter, onL
 	---
 	
 	
-	if not self.isMotorStarted then return; end;
+	if not self.isMotorStarted and not self.cp.saveFuel then return; end;
 
 	--oops i found myself
 	if otherId == self.rootNode then 
@@ -171,7 +171,7 @@ function courseplay:cpOnTrafficCollisionTrigger(triggerId, otherId, onEnter, onL
 				elseif onLeave and not isInOtherTrigger then
 					self.cp.collidingObjects.all[otherId] = nil
 					if self.cp.collidingVehicleId == otherId then
-						if TriggerNumber ~= 4 then
+						--if TriggerNumber ~= 4 then
 							--self.CPnumCollidingVehicles = math.max(self.CPnumCollidingVehicles - 1, 0);
 							--if self.CPnumCollidingVehicles == 0 then
 								--self.cp.collidingVehicleId = nil
@@ -179,9 +179,9 @@ function courseplay:cpOnTrafficCollisionTrigger(triggerId, otherId, onEnter, onL
 							--end
 							courseplay:setCollisionDirection(self.cp.trafficCollisionTriggers[1], self.cp.trafficCollisionTriggers[2], 0, -1);
 							courseplay:debug(string.format('%s: 	onLeave - setting "self.cp.collidingVehicleId" to nil', nameNum(self)), 3);
-						else
-							courseplay:debug(string.format('%s: 	onLeave - keep "self.CPnumCollidingVehicles"', nameNum(self)), 3);
-						end
+						--else
+						--	courseplay:debug(string.format('%s: 	onLeave - keep "self.CPnumCollidingVehicles"', nameNum(self)), 3);
+						--end
 					elseif self.cp.collidingVehicleId ~= nil then
 						courseplay:debug(string.format('%s: 	onLeave - not valid for "self.cp.collidingVehicleId" keep it', nameNum(self)), 3);
 					else
@@ -436,6 +436,9 @@ function courseplay:findSpecialTriggerCallback(transformId, x, y, z, distance)
 		elseif trigger.isGasStationTrigger or trigger.isDamageModTrigger then
 			self.cp.fillTrigger = transformId;
 			courseplay:debug(('%s: trigger %s is valid-> set self.cp.fillTrigger'):format(nameNum(self), tostring(transformId)), 19);
+		elseif trigger.isWaterTrailerFillTrigger then
+			self.cp.fillTrigger = transformId;
+			courseplay:debug(('%s: trigger %s is valid-> set self.cp.fillTrigger'):format(nameNum(self), tostring(transformId)), 19);
 		end;
 		return true;
 	end;
@@ -500,6 +503,12 @@ function courseplay:updateAllTriggers()
 						courseplay:cpAddTrigger(triggerId, trigger, 'gasStation', 'nonUpdateable');
 						courseplay:debug('\t\tadd GasStationTrigger', 1);
 
+					-- WeightStationTriggers
+					elseif trigger.isa and trigger:isa(WeighStation) then
+						trigger.isWeightStation = true;
+						courseplay:cpAddTrigger(triggerId, trigger, 'weightStation', 'nonUpdateable');
+						courseplay:debug('\t\tadd WeightStationTrigger', 1);
+
 					-- SowingMachineFillTriggers
 					elseif trigger.fillType and trigger.fillType == FillUtil.FILLTYPE_SEEDS then
 						trigger.isSowingMachineFillTrigger = true;
@@ -511,6 +520,7 @@ function courseplay:updateAllTriggers()
 						trigger.isSprayerFillTrigger = true;
 						courseplay:cpAddTrigger(triggerId, trigger, 'sprayer', 'nonUpdateable');
 						courseplay:debug('\t\tadd SprayerFillTrigger', 1);
+
 					-- WaterTrailerFillTriggers
 					elseif trigger.isa and trigger:isa(WaterTrailerFillTrigger) then
 						trigger.isWaterTrailerFillTrigger = true;
@@ -825,12 +835,14 @@ function courseplay:updateAllTriggers()
 	if courseplay.liquidManureOverloaders ~= nil then
 		for rootNode, vehicle in pairs(courseplay.liquidManureOverloaders) do
 			local trigger = vehicle.unloadTrigger
-			local triggerId = trigger.triggerId
-			trigger.isLiquidManureFillTrigger = true;
-			trigger.isLiquidManureOverloaderFillTrigger = true;
-			trigger.parentVehicle = vehicle
-			courseplay:cpAddTrigger(triggerId, trigger, 'liquidManure', 'nonUpdateable');
-			courseplay:debug(('\t\tadd overloader\'s liquidManureFillTrigger (id %d)'):format(triggerId), 1);
+			if trigger then
+				local triggerId = trigger.triggerId
+				trigger.isLiquidManureFillTrigger = true;
+				trigger.isLiquidManureOverloaderFillTrigger = true;
+				trigger.parentVehicle = vehicle
+				courseplay:cpAddTrigger(triggerId, trigger, 'liquidManure', 'nonUpdateable');
+				courseplay:debug(('\t\tadd overloader\'s liquidManureFillTrigger (id %d)'):format(triggerId), 1);
+			end;
 		end
 	end
 end;

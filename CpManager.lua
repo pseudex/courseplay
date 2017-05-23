@@ -705,6 +705,7 @@ function CpManager:setupGlobalInfoText()
 		DAMAGE_SHOULD				= { level = -1, text = 'COURSEPLAY_DAMAGE_SHOULD_BE_REPAIRED' };
 		END_POINT					= { level =  0, text = 'COURSEPLAY_REACHED_END_POINT' };
 		END_POINT_MODE_1			= { level =  0, text = 'COURSEPLAY_REACHED_END_POINT_MODE_1' };
+		END_POINT_MODE_8			= { level =  0, text = 'COURSEPLAY_REACHED_END_POINT_MODE_8' };
 		FARM_SILO_NO_FILLTYPE		= { level = -2, text = 'COURSEPLAY_FARM_SILO_NO_FILLTYPE'};
 		FARM_SILO_IS_EMPTY			= { level =  0, text = 'COURSEPLAY_FARM_SILO_IS_EMPTY'};
 		FARM_SILO_IS_FULL			= { level =  0, text = 'COURSEPLAY_FARM_SILO_IS_FULL'};
@@ -723,6 +724,7 @@ function CpManager:setupGlobalInfoText()
 		WAIT_POINT					= { level =  0, text = 'COURSEPLAY_REACHED_WAITING_POINT' };
 		WATER						= { level = -2, text = 'COURSEPLAY_WATER_WARNING' };
 		WEATHER						= { level =  0, text = 'COURSEPLAY_WEATHER_WARNING' };
+		WEIGHING_VEHICLE			= { level =  0, text = 'COURSEPLAY_IS_BEING_WEIGHED' };
 		WORK_END					= { level =  1, text = 'COURSEPLAY_WORK_END' };
 	};
 end;

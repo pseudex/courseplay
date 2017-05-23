@@ -23,6 +23,8 @@ function courseplay:start(self)
 			self.vehicleCharacter:setCharacterVisibility(false)
 		end
 	end
+    -- Start the reset character timer.
+	courseplay:setCustomTimer(self, "resetCharacter", 300);
 
 	if courseplay.isClient then
 		return
@@ -33,7 +35,8 @@ function courseplay:start(self)
 		return
 	end
 	courseplay:setEngineState(self, true);
-
+	self.cp.saveFuel = false
+	
 	--print(tableShow(self.attachedImplements[1],"self.attachedImplements",nil,nil,4))
 	--local id = self.attachedImplements[1].object.unloadTrigger.triggerId
 	--courseplay:findInTables(g_currentMission ,"g_currentMission", id)
@@ -152,7 +155,9 @@ function courseplay:start(self)
 	
 
 	local setLaneNumber = false;
-	local isFrontAttached = false
+	local isFrontAttached = false;
+	local isReversePossible = true;
+	local tailerCount = 0;
 	for k,workTool in pairs(self.cp.workTools) do    --TODO temporary solution (better would be Tool:getIsAnimationPlaying(animationName))
 		if courseplay:isFolding(workTool) then
 			if  self.aiLower ~= nil then
@@ -172,8 +177,14 @@ function courseplay:start(self)
 				isFrontAttached = true
 			end
 		end
+		if workTool.cp.hasSpecializationTrailer then
+			tailerCount = tailerCount + 1
+			if tailerCount > 1 then
+				isReversePossible = false
+			end
+		end
 	end;
-	
+	self.cp.isReversePossible = isReversePossible
 	self.cp.mode10.levelerIsFrontAttached = isFrontAttached
 
 	local mapIconPath = Utils.getFilename('img/mapWaypoint.png', courseplay.path);
@@ -181,8 +192,10 @@ function courseplay:start(self)
 	local mapIconWidth = mapIconHeight / g_screenAspectRatio;
 
 	local numWaitPoints = 0
+	local numUnloadPoints = 0
 	local numCrossingPoints = 0
 	self.cp.waitPoints = {};
+	self.cp.unloadPoints = {};
 	self.cp.shovelFillStartPoint = nil
 	self.cp.shovelFillEndPoint = nil
 	self.cp.shovelEmptyPoint = nil
@@ -209,6 +222,10 @@ function courseplay:start(self)
 			numWaitPoints = numWaitPoints + 1;
 			self.cp.waitPoints[numWaitPoints] = i;
 		end;
+		if wp.unload then
+			numUnloadPoints = numUnloadPoints + 1;
+			self.cp.unloadPoints[numUnloadPoints] = i;
+		end;
 		if wp.crossing then
 			numCrossingPoints = numCrossingPoints + 1;
 			self.cp.crossingPoints[numCrossingPoints] = i;
@@ -234,14 +251,22 @@ function courseplay:start(self)
 					self.cp.mediumWpDistance = self.cp.workDistance/i
 				end
 			end
-		elseif self.cp.mode == 7  then--combineUnloadMode
-			if numWaitPoints == 1 and (self.cp.startWork == nil or self.cp.startWork == 0) then
-				self.cp.startWork = i
-				self.cp.mode7makeHeaps = false
+			if numUnloadPoints == 1 and (self.cp.heapStart == nil or self.cp.heapStart == 0) then
+				self.cp.heapStart = i
+				self.cp.makeHeaps = false
 			end
-			if numWaitPoints > 1 and (self.cp.stopWork == nil or self.cp.stopWork == 0) then
-				self.cp.stopWork = i
-				self.cp.mode7makeHeaps = true
+			if numUnloadPoints > 1 and (self.cp.heapStop == nil or self.cp.heapStop == 0) then
+				self.cp.heapStop = i
+				self.cp.makeHeaps = true
+			end
+		elseif self.cp.mode == 7  then--combineUnloadMode
+			if numUnloadPoints == 1 and (self.cp.heapStart == nil or self.cp.heapStart == 0) then
+				self.cp.heapStart = i
+				self.cp.makeHeaps = false
+			end
+			if numUnloadPoints > 1 and (self.cp.heapStop == nil or self.cp.heapStop == 0) then
+				self.cp.heapStop = i
+				self.cp.makeHeaps = true
 			end
 		--unloading point for transporter
 		elseif self.cp.mode == 8 then
@@ -280,6 +305,7 @@ function courseplay:start(self)
 		end;
 	end;
 	self.cp.numWaitPoints = numWaitPoints;
+	self.cp.numUnloadPoints = numUnloadPoints;
 	self.cp.numCrossingPoints = numCrossingPoints;
 	courseplay:debug(string.format("%s: numWaitPoints=%d, waitPoints[1]=%s, numCrossingPoints=%d", nameNum(self), self.cp.numWaitPoints, tostring(self.cp.waitPoints[1]), numCrossingPoints), 12);
 
@@ -307,7 +333,7 @@ function courseplay:start(self)
 		end
 	end --END if modeState == 0
 
-	if self.cp.waypointIndex > 2 and self.cp.mode ~= 4 and self.cp.mode ~= 6 then
+	if self.cp.waypointIndex > 2 and self.cp.mode ~= 4 and self.cp.mode ~= 6 and self.cp.mode ~= 8 then
 		courseplay:setIsLoaded(self, true);
 	elseif self.cp.mode == 4 or self.cp.mode == 6 then
 		courseplay:setIsLoaded(self, false);
@@ -325,6 +351,8 @@ function courseplay:start(self)
 			courseplay:setWaypointIndex(self, 2);
 		end
 		courseplay:debug(string.format("%s: numWaypoints=%d, stopWork=%d, finishWork=%d, hasUnloadingRefillingCourse=%s,hasTransferCourse=%s, waypointIndex=%d", nameNum(self), self.cp.numWaypoints, self.cp.stopWork, self.cp.finishWork, tostring(self.cp.hasUnloadingRefillingCourse),tostring(self.cp.hasTransferCourse), self.cp.waypointIndex), 12);
+	elseif self.cp.mode == 8 then
+		courseplay:setIsLoaded(self, false);
 	end
 
 	if self.cp.mode == 9 then
@@ -409,6 +437,16 @@ function courseplay:start(self)
 		courseplay:createMapHotspot(self);
 	end;
 
+	-- Disable crop destruction if 4Real Module 01 - Crop Destruction mod is installed
+	if self.cropDestruction then
+		courseplay:disableCropDestruction(self);
+	end;
+
+	--More Realistlitic Mod. Temp fix until we can fix the breaking problem. 
+	if self.mrUseMrTransmission ~= nil then
+		self.mrUseMrTransmission = false
+	end
+
 	--print("startStop "..debug.getinfo(1).currentline)
 end;
 
@@ -446,7 +484,7 @@ function courseplay:getCanUseCpMode(vehicle)
 		return false;
 	end
 
-	local minWait, maxWait;
+	local minWait, maxWait, minUnload, maxUnload;
 
 	if mode == 3 or mode == 8 or mode == 10 then
 		minWait, maxWait = 1, 1;
@@ -472,14 +510,22 @@ function courseplay:getCanUseCpMode(vehicle)
 			end;
 		end;
 	elseif mode == 7 then
-		minWait, maxWait = 1, 2;
-		if vehicle.cp.numWaitPoints < minWait then
+		minWait, maxWait = 1, 1;
+		if vehicle.cp.numUnloadPoints == 0 and vehicle.cp.numWaitPoints < minWait then
 			courseplay:setInfoText(vehicle, string.format("COURSEPLAY_WAITING_POINTS_TOO_FEW;%d",minWait));
 			return false;
 		elseif vehicle.cp.numWaitPoints > maxWait then
 			courseplay:setInfoText(vehicle, string.format('COURSEPLAY_WAITING_POINTS_TOO_MANY;%d',maxWait));
 			return false;
-		end;	
+		end;
+		minUnload, maxUnload = 2, 2;
+		if vehicle.cp.numWaitPoints == 0 and vehicle.cp.numUnloadPoints < minUnload then
+			courseplay:setInfoText(vehicle, string.format('COURSEPLAY_UNLOADING_POINTS_TOO_FEW;%d',minUnload));
+			return false;
+		elseif vehicle.cp.numUnloadPoints > maxUnload then
+			courseplay:setInfoText(vehicle, string.format('COURSEPLAY_UNLOADING_POINTS_TOO_MANY;%d',maxUnload));
+			return false;
+		end;
 	elseif mode == 4 or mode == 6 then
 		if vehicle.cp.startWork == nil or vehicle.cp.stopWork == nil then
 			courseplay:setInfoText(vehicle, 'COURSEPLAY_NO_WORK_AREA');
@@ -493,6 +539,13 @@ function courseplay:getCanUseCpMode(vehicle)
 					return false;
 				elseif vehicle.cp.numWaitPoints > maxWait then
 					courseplay:setInfoText(vehicle, string.format('COURSEPLAY_WAITING_POINTS_TOO_MANY;%d',maxWait));
+					return false;
+				end;
+			end;
+			if vehicle.cp.isCombine or vehicle.cp.isHarvesterSteerable then
+				maxUnload = 2;
+				if vehicle.cp.numUnloadPoints > maxUnload then
+					courseplay:setInfoText(vehicle, string.format('COURSEPLAY_UNLOADING_POINTS_TOO_MANY;%d',maxUnload));
 					return false;
 				end;
 			end;
@@ -529,6 +582,24 @@ function courseplay:stop(self)
 	self.steeringEnabled = true;
 	self.disableCharacterOnLeave = true;
 
+	if g_currentMission.missionInfo.automaticMotorStartEnabled and self.cp.saveFuel and not self.isMotorStarted then
+		courseplay:setEngineState(self, true);
+		self.cp.saveFuel = false;		
+	end
+	if courseplay:getCustomTimerExists(self,'fuelSaveTimer')  then 
+		--print("reset existing timer")
+		courseplay:resetCustomTimer(self,'fuelSaveTimer',true)
+	end
+	
+	if self.cp.runReset == true then
+ 		self.cp.runCounter = 0;
+ 		self.cp.runReset = false;
+ 		courseplay:changeRunCounter(self, false)
+ 	end;
+
+	-- Reset the reset character timer.
+	courseplay:resetCustomTimer(self, "resetCharacter", true);
+
 	if self.vehicleCharacter ~= nil then
 		self.vehicleCharacter:delete();
 	end
@@ -552,6 +623,12 @@ function courseplay:stop(self)
 	for _, tool in pairs (self.cp.workTools) do
 		--  vehicle, workTool, unfold, lower, turnOn, allowedToDrive, cover, unload, ridgeMarker,forceSpeedLimit)
 		courseplay:handleSpecialTools(self, tool, false,   false,  false,   false, false, nil,nil,0);
+		if tool.cp.originalCapacities then
+			for index,fillUnit in pairs(tool.fillUnits) do
+				fillUnit.capacity =  tool.cp.originalCapacities[index]
+			end
+			tool.cp.originalCapacities = nil
+		end
 	end
 
 	self.cp.lastInfoText = nil
@@ -559,6 +636,16 @@ function courseplay:stop(self)
 	if courseplay.isClient then
 		return
 	end
+
+	-- Enable crop destruction if 4Real Module 01 - Crop Destruction mod is installed
+	if self.cropDestruction then
+		courseplay:enableCropDestruction(self);
+	end;
+
+	--More Realistlitic Mod. Temp fix until we can fix the breaking problem. 
+	if self.mrUseMrTransmission ~= nil then
+		self.mrUseMrTransmission = true;
+	end;
 
 	if self.cp.hasDriveControl then
 		local changed = false;
@@ -579,6 +666,10 @@ function courseplay:stop(self)
 		self.cp.cruiseControlSpeedBackup = nil;
 	end;
 
+	if self.cp.takeOverSteering then
+		self.cp.takeOverSteering = false
+	end
+	
 	courseplay:releaseCombineStop(self)
 	self.cp.BunkerSiloMap = nil
 	self.cp.mode9TargetSilo = nil
@@ -640,6 +731,8 @@ function courseplay:stop(self)
 	self.cp.curSpeed = 0;
 
 	self.motor.maxRpmOverride = nil;
+	self.cp.heapStart = nil
+	self.cp.heapStop = nil
 	self.cp.startWork = nil
 	self.cp.stopWork = nil
 	self.cp.hasFinishedWork = nil
@@ -731,4 +824,41 @@ function courseplay:findVehicleHeights(transformId, x, y, z, distance)
 	end
 
 	return true
+end
+
+function courseplay:checkSaveFuel(vehicle,allowedToDrive)
+	if (not vehicle.cp.saveFuelOptionActive) 
+	or (vehicle.cp.mode == courseplay.MODE_COMBI and vehicle.cp.activeCombine ~= nil)
+	or (vehicle.cp.mode == courseplay.MODE_FIELDWORK and vehicle.courseplayers ~= nil and #vehicle.courseplayers > 0)
+	or ((vehicle.cp.mode == courseplay.MODE_LIQUIDMANURE_TRANSPORT or vehicle.cp.mode == courseplay.MODE_OVERLOADER) and vehicle.Waypoints[vehicle.cp.previousWaypointIndex].wait)
+	then
+		if vehicle.cp.saveFuel then
+			vehicle.cp.saveFuel = false
+		end
+		courseplay:resetCustomTimer(vehicle,'fuelSaveTimer',true)
+		return
+	end
+	
+	if allowedToDrive then
+		if courseplay:getCustomTimerExists(vehicle,'fuelSaveTimer')  then 
+			--print("reset existing timer")
+			courseplay:resetCustomTimer(vehicle,'fuelSaveTimer',true)
+		end
+		if vehicle.cp.saveFuel then
+			--print("reset saveFuel")
+			vehicle.cp.saveFuel = false
+		end	
+	else
+		-- set fuel save timer
+		if not vehicle.cp.saveFuel then
+			if courseplay:timerIsThrough(vehicle,'fuelSaveTimer',false) then
+				--print(" timer is throught and not nil")
+				--print("set saveFuel")
+				vehicle.cp.saveFuel = true
+			elseif courseplay:timerIsThrough(vehicle,'fuelSaveTimer') then
+				--print(" set timer ")
+				courseplay:setCustomTimer(vehicle,'fuelSaveTimer',30)
+			end
+		end
+	end
 end
